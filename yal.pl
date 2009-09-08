@@ -32,12 +32,13 @@ use Tk::BrowseEntry;
 use Tk::HList;
 use Tk::ItemStyle;
 # use Tk::Balloon;
+use Date::Format;
 
 use subs qw/beep/;
 use warnings;
 use strict;
 
-my $version = "0.1.2b";
+my $version = "0.1.3b";
 my $kills = 0;
 my $deaths = 0;
 my $totalxp = 0;
@@ -79,6 +80,9 @@ my $parsetime = 3000;  # The number of miliseconds between each parsing of the f
 my $server = "";
 my $myserverwho = 0;
 my $catchpartywho = 0;
+my $serveruptime = "?";
+my $uptime_secs = 0;
+my $uptimeat = 0; # at which time did we catch the uptime msg
 
 #
 # this is to hold the chat_dialog
@@ -252,6 +256,7 @@ my %immunities = ("Bludgeoning" => "--",
 		  "Positive" => "--",
 		  "Sonic" => "--"
 );
+my %resists = ();
 
 my @IMMUNE = ("Critical Hits", "Sneak Attacks", "Mind Affecting Spells", "Bigby's Grasping Hand");
 
@@ -299,7 +304,7 @@ my $col_acid = "Green1";
 
 # Main Window
 my $mw = new MainWindow();
-$mw ->title("NWN logger v" .$version . ". --- by Claus Ekstrom 2008. Edits by Illandous");
+$mw ->title("NWN logger v" .$version . ". --- by Claus Ekstrom 2008. Edits by Illandous & Separ");
 
 #
 # Now define the main frames/areas of the GUI
@@ -369,6 +374,14 @@ my $toon_name = $frm_info -> LabEntry(-textvariable => \$toon,
 my $frm_server = $frm_info -> Frame() ->pack(-side=>'top');
 my $server_name = $frm_info -> LabEntry(-textvariable => \$server,
 				    -label => "Server",
+				    -width => 3,
+				    -state => 'disabled', -disabledforeground => 'black',
+				    -labelPack => [-side => 'left']) -> pack(-side=>'left');
+my $frm_uptime = $frm_info -> Frame() ->pack(-side=>'top');
+my $uptime_text = $frm_info -> LabEntry(-textvariable => \$serveruptime,
+				    -label => "Uptime",
+				    -width => 5, # increase if we want to show seconds
+				    -state => 'disabled', -disabledforeground => 'black',
 				    -labelPack => [-side => 'left']) -> pack(-side=>'left');
 
 ## Fugue timers
@@ -492,7 +505,7 @@ foreach $_ (@DAMAGETYPES) {
 ##
 my $frm_status = $mw -> Frame();
 my $newlog     = $frm_status -> Button(-text => "New Log File", -command =>\&inc_logcount)->pack(-side=>"right");
-my $imms       = $frm_status -> Text(-background=>"black", -height=>1, width=>45, -tabs => [qw/.23i/],
+my $imms       = $frm_status -> Text(-background=>"black", -height=>1, width=>70, -tabs => [qw/.23i/],
 				     -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]) -> pack(-side=>"right");
 my $status     = $frm_status -> Label(-textvariable => \$statusmessage, -borderwidth=>2, -relief=>'groove', -anchor=>"w") ->pack(-side=>"left", -fill => 'x', -expand=>1);
 
@@ -560,6 +573,7 @@ sub parse_log_file {
     return if !(-e $currentlogfile);
 
     # Make sure we're parsing the active log file
+    # TODO: move info about $currentlogfile and (RUN) to top right
     $statusmessage = "Parsing " . $currentlogfile;
     $statusmessage .= "(RUN)" if (defined($saverunbuffer));
     $statusmessage .= " | Total XP: " . $totalxp . " | Total dmg: " . (defined($damage_done{$toon}) ? $damage_done{$toon} : "None yet" ) ;
@@ -627,6 +641,11 @@ sub parse_log_file {
             next;
         }
 
+	# update server uptime if we did catch it once
+	if ($uptime_secs) {
+	    $serveruptime = time2str("%R", $uptime_secs + (time() - $uptimeat), 0);
+	}
+
 
 	#
 	# Match on most frequent lines first and use next (instead of a lot of else if's) to speed up evaluations
@@ -671,6 +690,7 @@ sub parse_log_file {
 			$damage_out -> insert('end', "\t", "$COLOURS{$_}");
 		    }
 		}
+		# TODO: if (exists($DONOTHIT{$defender})) change color from white to something else
 		$damage_out -> insert('end', "$defender\n", "white");
 	    }
 	    else {
@@ -743,7 +763,6 @@ sub parse_log_file {
 	    
 	    if ($OPTIONS{"badboy"}==1) {
 		$badtooncounter{$attacker}++ if (exists($DONOTHIT{$defender}));
-		# TODO: if ($toon eq $attacker) display alert somewhere
 	    }
 	    
 	    if ($toon eq $attacker) {
@@ -751,6 +770,7 @@ sub parse_log_file {
 		if ($status eq "hit" || $status eq "crit" ) {
 		    $hitfrequency += 1/($hitfrequencyweight + 1);
 		}
+		# TODO: if (exists($DONOTHIT{$defender})) change color from white to something else
 		$hits_out -> insert('end', sprintf("%-3d\t:\t%-4s\t:\t%2.0f%%\t:\t%-15s\n", $ab, $status, $hitfrequency*100, $defender), 'white');
 	    }
 	    elsif ($toon eq $defender) {
@@ -1061,8 +1081,9 @@ sub parse_log_file {
        # Immunities
        # List immunities read from !list imm . Still some trouble with formatting
        
-       if (/^    (Bludgeoning|Piercing|Slashing|Magical|Acid|Cold|Divine|Electrical|Fire|Negative|Positive|Sonic):.+(.{3})%/){
+       if (/^    (Bludgeoning|Piercing|Slashing|Magical|Acid|Cold|Divine|Electrical|Fire|Negative|Positive|Sonic): \.+(\d+)%(\.+(\d+)\/-\.+)?/){
 	   $immunities{$1} = $2;
+	   $resists{$1} = $4;
 	   print_immunities();
 	   next;
        }
@@ -1103,8 +1124,12 @@ sub parse_log_file {
 	    next;
 	}
 	# prepare server uptime display
-	if (/This server has been up for (\d+) hours, (\d+) minutes, and (\d+) seconds\./) {
-	    # TODO: $uptime = ..., uptime display in top info bar
+	if (/This server has been up for ((\d+) hours,)? (\d+) minutes,? and (\d+) seconds\./) {
+	    $uptimeat = time();
+	    $uptime_secs = $4 + 60*$3 + 3600*$2;
+	    #$serveruptime = sprintf("%d:%02d", $2, $3); # display seconds?
+	    $serveruptime = time2str("%R", $uptime_secs, 0);
+	    # TODO: update it regularely
 	    next;
 	}
 	# Player information from !who commands
@@ -1469,7 +1494,11 @@ sub print_immunities {
     $imms -> delete("1.0", 'end');
     # Remove physical
     foreach (@DAMAGETYPESIMM) {
-	$imms -> insert('end',  $immunities{$_}. "\t", "$COLOURS{$_}"); 
+	my $t = $immunities{$_};
+	# TODO: make option if to show resists
+	$t .= '|' . $resists{$_} if ($resists{$_});
+	#$imms -> insert('end',  $immunities{$_}. "\t", "$COLOURS{$_}");
+	$imms -> insert('end',  $t. "\t", "$COLOURS{$_}");  
     }
 }
 
