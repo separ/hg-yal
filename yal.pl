@@ -75,6 +75,10 @@ my $effectid;     # Id to keep information about who effect listings concern
 my $debug = 0;
 my $parsetime = 3000;  # The number of miliseconds between each parsing of the file
 
+# for edits by Separ
+my $server = "";
+my $myserverwho = 0;
+my $catchpartywho = 0;
 
 #
 # this is to hold the chat_dialog
@@ -356,11 +360,16 @@ my $menu_file = $frm_menu -> Menubutton(-text=>'File',
 						       ]) -> pack(-side=>'left');
 
 ## Name frame
-my $frm_name = $frm_top -> Frame() ->pack(-side=>'top');
-my $toon_name = $frm_top -> LabEntry(-textvariable => \$toon,
+my $frm_info = $frm_top -> Frame();
+$frm_info -> pack(-side=>'top', -anchor=>'w', -fill=>'x');
+my $frm_name = $frm_info -> Frame() ->pack(-side=>'top');
+my $toon_name = $frm_info -> LabEntry(-textvariable => \$toon,
 				    -label => "Name",
-				    -labelPack => [-side => 'left']) -> pack();
-
+				    -labelPack => [-side => 'left']) -> pack(-side=>'left');
+my $frm_server = $frm_info -> Frame() ->pack(-side=>'top');
+my $server_name = $frm_info -> LabEntry(-textvariable => \$server,
+				    -label => "Server",
+				    -labelPack => [-side => 'left']) -> pack(-side=>'left');
 
 ## Fugue timers
 my $frm_rightbar  = $mw -> Frame();
@@ -734,6 +743,7 @@ sub parse_log_file {
 	    
 	    if ($OPTIONS{"badboy"}==1) {
 		$badtooncounter{$attacker}++ if (exists($DONOTHIT{$defender}));
+		# TODO: if ($toon eq $attacker) display alert somewhere
 	    }
 	    
 	    if ($toon eq $attacker) {
@@ -1016,14 +1026,16 @@ sub parse_log_file {
 	
 	# Spell and condition immunity
 	# Need two here as they are listed differently in the log
-	if (/^(.+) : Immune to (.+)\.$/) {
-	    $immune{$1}{$2} = 1;	    
+	#if (/^(.+) : Immune to (.+)\.$/) {
+	if (/^(.+) : Immune to (.+)\.?$/) {
+	    $immune{$1}{$2} = 1;
+	    # TODO: display somewhere if $1 is our current target
 	    next;
-	}	
-	if (/^(.+) : Immune to (.+)$/) {
-	    $immune{$1}{$2} = 1;	    
-	    next;
-	}	
+	}
+	#if (/^(.+) : Immune to (.+)$/) {
+	#    $immune{$1}{$2} = 1;	    
+	#    next;
+	#}	
 
 	#
         # Various lines that cannot really be used for anything as you cnnot see who causes them
@@ -1072,13 +1084,36 @@ sub parse_log_file {
 	    next;
 	}
 	#Clears party stats
-	if (/^\[Server\] ===== Server \d.+$/){
-	%party = ();
+	if (/^\[Server\] ===== Server (\d+).+$/){
+	    #%party = ();
+	    if ($1 eq $server) {
+		$myserverwho = 1;
+		clear_party(); # TODO: only if it's a party-who
+	    } else {
+		$myserverwho = 0;
+		$catchpartywho = 0;
+	    }
+	    next;
+	}
+	# On which server are we? - at welcome and end of !who
+	if (/You are on server (\d+)/) {
+	    $server = $1;
+	    $myserverwho = 0; # no !who output to follow immediately after
+	    $catchpartywho = 0;
+	    next;
+	}
+	# prepare server uptime display
+	if (/This server has been up for (\d+) hours, (\d+) minutes, and (\d+) seconds\./) {
+	    # TODO: $uptime = ..., uptime display in top info bar
+	    next;
 	}
 	# Player information from !who commands
 	# old if (/^  \s*\[\d+(\/\d+)?\]( \|.+\|)? (.+) $/) {
 	#ills version
 	if (/^.+\[(\d+ \D\D\D.+?)\] (.+) $/){    
+
+	    next if (!$myserverwho); # ignore playerlisting from other servers
+
 		#print "!who output: $_" if (1);
 		#print "!who output: $_" if ($debug);
 	    chomp;
@@ -1097,7 +1132,8 @@ sub parse_log_file {
 	    #$toonname =~ s/ \(.{8,30}\)//;
 	    
 	    $listofplayers{$toonname} = 0 if (!defined($listofplayers{$toonname}));
-		$party{$toonname} = 1;
+	    #$party{$toonname} = 1;
+	    new_party_member($toonname) if ($catchpartywho);
 		if ($debug) {print "$listofplayers{$toonname} \n";}
 		
 #	    print "Found $toonname in this line:>>>$_<<<\n";
@@ -1105,9 +1141,14 @@ sub parse_log_file {
 	}
 	
 	
-	if (/^(.+) has joined the party\./) {
+	if (/^(.+) has (joined|left) the party\./) {
 	    $listofplayers{$1} = 1;
-	   next;
+	    if ($2 eq "joined") {
+		new_party_member($1); # TODO: make option for this catch
+	    } else {
+		$party{$1} = 0;
+	    }
+	    next;
 	}
 	
 
@@ -1239,6 +1280,9 @@ sub parse_log_file {
 	    }
 	    if ($command eq "pstats") {
 		dialog_party_summary();
+	    }
+	    if ($command eq "who") {
+		$catchpartywho = 1;
 	    }
 
 	    next;
