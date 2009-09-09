@@ -33,6 +33,7 @@ use Tk::HList;
 use Tk::ItemStyle;
 # use Tk::Balloon;
 use Date::Format;
+use Date::Parse;
 
 use subs qw/beep/;
 use warnings;
@@ -78,6 +79,7 @@ my $parsetime = 3000;  # The number of miliseconds between each parsing of the f
 
 # for edits by Separ
 my $server = "";
+my $srv_time = 0;
 my $myserverwho = 0;
 my $catchpartywho = 0;
 my $serveruptime = "?";
@@ -608,6 +610,15 @@ sub parse_log_file {
 	s/\[CHAT WINDOW TEXT\]\s+//;
 	s/^\[([^\]]+)\]\s//;
 	my $time = $1 if defined $1;
+
+	# update server uptime if we did catch it once
+	if ($time) {
+	    $srv_time = str2time($time);
+	    if ($uptime_secs) {
+		$serveruptime = time2str("%R", $uptime_secs + ($srv_time - $uptimeat), 0);
+	    }
+	}
+
 	
 	# Remove chats and stuff
         if (/^(.+ )(.*): \[(Tell|Party|Shout)\] /) {
@@ -640,11 +651,6 @@ sub parse_log_file {
             }
             next;
         }
-
-	# update server uptime if we did catch it once
-	if ($uptime_secs) {
-	    $serveruptime = time2str("%R", $uptime_secs + (time() - $uptimeat), 0);
-	}
 
 
 	#
@@ -1099,6 +1105,9 @@ sub parse_log_file {
 	# Welcome message
 	if (/Welcome to Higher Ground, (.+)!$/) {
 	    if ($OPTIONS{"catchtoonname"}==1) {
+		# clear old toon from party if re-login with another toon
+		$party{$toon} = 0 if ($toon and defined $party{$toon});
+
 		new_party_member($1);
 		$toon = $1;
 	    }
@@ -1124,12 +1133,11 @@ sub parse_log_file {
 	    next;
 	}
 	# prepare server uptime display
-	if (/This server has been up for ((\d+) hours,)? (\d+) minutes,? and (\d+) seconds\./) {
-	    $uptimeat = time();
-	    $uptime_secs = $4 + 60*$3 + 3600*$2;
-	    #$serveruptime = sprintf("%d:%02d", $2, $3); # display seconds?
+	if (/This server has been up for ((\d+) hours, )?(\d+) minutes,? and (\d+) seconds\./) {
+	    $uptime_secs = $4 + 60*$3 + ($2 ? 3600*$2 : 0);
+	    $uptimeat = $srv_time;
+	    #$serveruptime = sprintf("%02d:%02d", $2, $3); # display seconds?
 	    $serveruptime = time2str("%R", $uptime_secs, 0);
-	    # TODO: update it regularely
 	    next;
 	}
 	# Player information from !who commands
