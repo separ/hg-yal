@@ -85,6 +85,7 @@ my $catchpartywho = 0;
 my $serveruptime = "?";
 my $uptime_secs = 0;
 my $uptimeat = 0; # at which time did we catch the uptime msg
+my $logfile_info = "?";
 
 #
 # this is to hold the chat_dialog
@@ -366,7 +367,7 @@ my $menu_file = $frm_menu -> Menubutton(-text=>'File',
 							-command => \&save_inventories]
 						       ]) -> pack(-side=>'left');
 
-## Name frame
+## Top info frame: name, current server, uptime, logfile info
 my $frm_info = $frm_top -> Frame();
 $frm_info -> pack(-side=>'top', -anchor=>'w', -fill=>'x');
 my $frm_name = $frm_info -> Frame() ->pack(-side=>'top');
@@ -385,6 +386,14 @@ my $uptime_text = $frm_info -> LabEntry(-textvariable => \$serveruptime,
 				    -width => 5, # increase if we want to show seconds
 				    -state => 'disabled', -disabledforeground => 'black',
 				    -labelPack => [-side => 'left']) -> pack(-side=>'left');
+my $newlog     = $frm_info -> Button(-text => "New !", -command =>\&inc_logcount, -padx => 3, -pady => 1)->pack(-side=>"right");
+my $frm_logfile = $frm_info -> Frame() ->pack(-side=>'top');
+my $logfile_text = $frm_info -> LabEntry(-textvariable => \$logfile_info,
+				    -label => "Parsing Log",
+				    #-width => 5, # increase if we want to show seconds
+				    -state => 'disabled', -disabledforeground => 'black',
+				    -labelPack => [-side => 'left']) -> pack(-side=>'right');
+
 
 ## Fugue timers
 my $frm_rightbar  = $mw -> Frame();
@@ -506,7 +515,8 @@ foreach $_ (@DAMAGETYPES) {
 
 ##
 my $frm_status = $mw -> Frame();
-my $newlog     = $frm_status -> Button(-text => "New Log File", -command =>\&inc_logcount)->pack(-side=>"right");
+# logfile info moved to top right
+#my $newlog     = $frm_status -> Button(-text => "New Log File", -command =>\&inc_logcount)->pack(-side=>"right");
 my $imms       = $frm_status -> Text(-background=>"black", -height=>1, width=>70, -tabs => [qw/.23i/],
 				     -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]) -> pack(-side=>"right");
 my $status     = $frm_status -> Label(-textvariable => \$statusmessage, -borderwidth=>2, -relief=>'groove', -anchor=>"w") ->pack(-side=>"left", -fill => 'x', -expand=>1);
@@ -576,9 +586,11 @@ sub parse_log_file {
 
     # Make sure we're parsing the active log file
     # TODO: move info about $currentlogfile and (RUN) to top right
-    $statusmessage = "Parsing " . $currentlogfile;
-    $statusmessage .= "(RUN)" if (defined($saverunbuffer));
-    $statusmessage .= " | Total XP: " . $totalxp . " | Total dmg: " . (defined($damage_done{$toon}) ? $damage_done{$toon} : "None yet" ) ;
+    #$statusmessage = "Parsing " . $currentlogfile;
+    #$statusmessage .= "(RUN)" if (defined($saverunbuffer));
+    $logfile_info = $currentlogfile . (defined($saverunbuffer) ? ' (RUN)' : '');
+    #$statusmessage .= " | Total XP: " . $totalxp . " | Total dmg: " . (defined($damage_done{$toon}) ? $damage_done{$toon} : "None yet" ) ;
+    $statusmessage = "Total XP: " . $totalxp . " | Total dmg: " . (defined($damage_done{$toon}) ? $damage_done{$toon} : "None yet" ) ;
 
     if ($OPTIONS{"showparagons"}==1) {
 	if ($totalmobkills>0) { 
