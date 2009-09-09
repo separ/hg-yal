@@ -468,7 +468,7 @@ my $frm_out = $frm_top -> Frame(-label => "Outgoing damage:") -> pack(-side=>"to
 
 my $hits_inc = $frm_inc -> Scrolled('Text', -width=>35, -height=>6, 
 				      -foreground=>'white', -background=>'black',
-				      -tabs => [qw/.3i/],
+				      -tabs => [$OPTIONS{"fontsize-hit"}*5], # screen distance sucks on my laptop -tabs => [qw/.3i/],
 				      -font => [-family => $OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}],
 				      -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'left', -fill=>"both", -expand=>1);
 
@@ -476,30 +476,30 @@ my $frame_inc_header = $frm_inc -> Frame() -> pack(-side=>'right', -fill=>"both"
 
 my $dmgheader_inc = $frame_inc_header -> Text(-width=>60, -height=>1, 
 				      -foreground=>'white', -background=>'black',
-				      -tabs => [qw/.35i/],
+				      -tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
 				      -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}])->pack(-side=>"top", -fill=>"x", -expand=>0);
 
 my $damage_inc = $frame_inc_header -> Scrolled('Text', -width=>60, -height=>6, 
 				      -foreground=>'white', -background=>'black',
-				      -tabs => [qw/.35i/],
+				      -tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
 				      -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}],
 			              -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'top', -fill=>"both", -expand=>1);
 
 my $hits_out = $frm_out -> Scrolled('Text', -width=>35, -height=>6, 
 				      -foreground=>'white', -background=>'black',
-				      -tabs => [qw/.3i/],
+				      -tabs => [$OPTIONS{"fontsize-hit"}*5], # screen distance sucks on my laptop -tabs => [qw/.3i/],
 				      -font => [-family => $OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}],
 				      -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'left', -fill=>'both', -expand=>1);
 
 my $frame_out_header = $frm_out -> Frame() -> pack(-side=>'right', -fill=>"both", -expand=>1);
 my $dmgheader_out = $frame_out_header -> Text(-width=>60, -height=>1, 
 				      -background=>'black',
-				      -tabs => [qw/.35i/],
+				      -tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
 				      -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}])->pack(-side=>"top", -fill=>"x", -expand=>0);
 
 my $damage_out = $frame_out_header -> Scrolled('Text', -width=>60, -height=>6, 
 				      -foreground=>'white', -background=>'black',
-				      -tabs => [qw/.35i/],
+				      -tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
 				      -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}],
 			              -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'top', -fill=>"both", -expand=>1);
 
@@ -708,8 +708,8 @@ sub parse_log_file {
 			$damage_out -> insert('end', "\t", "$COLOURS{$_}");
 		    }
 		}
-		# TODO: if (exists($DONOTHIT{$defender})) change color from white to something else
-		$damage_out -> insert('end', "$defender\n", "white");
+		#$damage_out -> insert('end', "$defender\n", "white");
+		append_monster($damage_out, $defender);
 	    }
 	    else {
 		$damage_inc -> insert('end', $total . "\t", 'white');
@@ -721,7 +721,8 @@ sub parse_log_file {
 			$damage_inc -> insert('end', "\t", "$COLOURS{$_}");
 		    }
 		}
-		$damage_inc -> insert('end', "$attacker\n", "white");
+		#$damage_inc -> insert('end', "$attacker\n", "white");
+		append_monster($damage_inc, $attacker);
 	    }
 	    next;
 	}
@@ -771,6 +772,7 @@ sub parse_log_file {
 		$conceal{$defender} = $1 if $1 > $conceal{$defender};
 		$Conceals{$attacker}{$defender}++;
 		$dodge{$defender}++;
+		$status = "c$1%"; # for better display?
 	    }
 	    else {
 		$dodge{$defender}++;
@@ -780,7 +782,7 @@ sub parse_log_file {
 	    $hitpercentage{$attacker} = sprintf("%3.2f %%", $hits{$attacker}/$swings{$attacker}*100);
 	    
 	    if ($OPTIONS{"badboy"}==1) {
-		$badtooncounter{$attacker}++ if (exists($DONOTHIT{$defender}));
+		$badtooncounter{$attacker}++ if (hg_do_not_hit($defender));
 	    }
 	    
 	    if ($toon eq $attacker) {
@@ -788,15 +790,19 @@ sub parse_log_file {
 		if ($status eq "hit" || $status eq "crit" ) {
 		    $hitfrequency += 1/($hitfrequencyweight + 1);
 		}
-		# TODO: if (exists($DONOTHIT{$defender})) change color from white to something else
-		$hits_out -> insert('end', sprintf("%-3d\t:\t%-4s\t:\t%2.0f%%\t:\t%-15s\n", $ab, $status, $hitfrequency*100, $defender), 'white');
+		# TODO: if (hg_do_not_hit($defender)) change color from white to something else
+		#$hits_out -> insert('end', sprintf("%-3d\t:\t%-4s\t:\t%2.0f%%\t:\t%-15s\n", $ab, $status, $hitfrequency*100, $defender), 'white');
+		#$hits_out -> insert('end', sprintf("%-3d:\t%-4s:\t%2.0f%%:\t%-15s\n", $ab, $status, $hitfrequency*100, $defender), 'white');
+		append_attack($hits_out, $ab, $roll, $status, $hitfrequency*100, $defender, 'green');
 	    }
 	    elsif ($toon eq $defender) {
 		$defencefrequency = ($hitfrequencyweight*$defencefrequency)/($hitfrequencyweight + 1);
 		if ($status ne "hit" && $status ne "crit" ) {
 		    $defencefrequency += 1/($hitfrequencyweight + 1);
 		}
-		$hits_inc -> insert('end', sprintf("%-3d : %-4s : %2.0f%% : %-15s\n", $ab, $status, 100*$defencefrequency, $attacker), 'white');
+		#$hits_inc -> insert('end', sprintf("%-3d : %-4s : %2.0f%% : %-15s\n", $ab, $status, 100*$defencefrequency, $attacker), 'white');
+		#$hits_inc -> insert('end', sprintf("%-3d:\t%-4s:\t%2.0f%%:\t%-15s\n", $ab, $status, 100*$defencefrequency, $attacker), 'white');
+		append_attack($hits_inc, $ab, $roll, $status, $defencefrequency*100, $attacker, 'red');
 	    }
 #	   $hitpercentage{$attacker} = 1 / $swings{attacker};
 	    next;
@@ -853,7 +859,7 @@ sub parse_log_file {
 
 
 	   if ($OPTIONS{"badboy"}==1) {
-	       $badtooncounter{$attacker}++ if (exists($DONOTHIT{$defender}));
+	       $badtooncounter{$attacker}++ if (hg_do_not_hit($defender));
 	   }
 	   
 	   if ($toon eq $attacker) {
@@ -861,14 +867,16 @@ sub parse_log_file {
 	       if ($status eq "hit" || $status eq "crit" ) {
 		   $hitfrequency += 1/($hitfrequencyweight + 1);
 	       }
-	       $hits_out -> insert('end', sprintf("%-3d : %-4s : %2.0f%% : %-15s\n", $ab, $status, $hitfrequency*100, $defender));
+	       #$hits_out -> insert('end', sprintf("%-3d : %-4s : %2.0f%% : %-15s\n", $ab, $status, $hitfrequency*100, $defender));
+		append_attack($hits_out, $ab, $roll, $status, $hitfrequency*100, $defender, 'green');
 	   }
 	   elsif ($toon eq $defender) {
 	       $defencefrequency = ($hitfrequencyweight*$defencefrequency)/($hitfrequencyweight + 1);
 	       if ($status ne "hit" && $status ne "crit" ) {
 		   $defencefrequency += 1/($hitfrequencyweight + 1);
 	       }
-	       $hits_inc -> insert('end', sprintf("%-3d : %-4s : %2.0f%% : %-15s\n", $ab, $status, 100*$defencefrequency, $attacker));	       
+	       #$hits_inc -> insert('end', sprintf("%-3d : %-4s : %2.0f%% : %-15s\n", $ab, $status, 100*$defencefrequency, $attacker));	       
+		append_attack($hits_inc, $ab, $roll, $status, $defencefrequency*100, $attacker, 'red');
 	   }
 	   next;
        }
@@ -913,7 +921,7 @@ sub parse_log_file {
 	   else {
 	       # Check if the monster was a paragon
 	       $totalmobkills++;
-	       $paracount{$PARAMONSTERS{$2}}++ if (exists($PARAMONSTERS{$2}));
+	       $paracount{$PARAMONSTERS{$2}}++ if (hg_is_para($2));
 	   }
        
 	   # Hmm. Still counting this separately for the player. That is not necessary. Should be integrated with the general hash
@@ -2398,9 +2406,9 @@ sub configure_fonts {
 				  -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]);
 	$dmgheader_inc->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]);
-	$hits_inc->tagConfigure($colour,
+	$hits_inc->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}]);
-	$hits_out->tagConfigure($colour,
+	$hits_out->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}]);
 	$saves->tagConfigure($colour,
 				  -font=>[-family=>$OPTIONS{"font-resist"}, -size=>$OPTIONS{"fontsize-resist"}]);
@@ -2509,5 +2517,49 @@ sub load_configuration {
 	# geometry
 	$mw->geometry($OPTIONS{"geometry"}) if ($OPTIONS{"geometry"} ne "");
     }
+}
+
+#
+# some helper functions in preparation to using hgdata.xml
+#
+sub hg_is_para {
+    my $monster = shift;
+    return exists($PARAMONSTERS{$monster});
+}
+
+sub hg_do_not_hit {
+    my $monster = shift;
+    return exists($DONOTHIT{$monster});
+}
+
+sub append_monster {
+    my ($widget, $monster) = @_;
+
+    my $color = 'white';
+    my $flags = '';
+
+    if (hg_is_para($monster)) {
+	my $pl = $PARAMONSTERS{$monster}; # para level
+	$flags .= "P$pl";
+	$color = ($pl == 1) ? 'yellow' : 'orange';
+    }
+    if (hg_do_not_hit($monster)) {
+	$flags .= 'D';
+	$color = 'red';
+    }
+    if ($flags) {
+	$flags = " [$flags]";
+    }
+
+    $widget -> insert('end', "$monster$flags\n", $color);
+}
+
+sub append_attack {
+    my ($widget, $ab, $roll, $status, $frequency, $monster, $hitcolor) = @_;
+
+    my $color = (($status =~ /hit|crit/) ? $hitcolor : 'white');
+    #$widget -> insert('end', sprintf("%-3d:\t%-4s:\t%2.0f%%:\t%-15s\n", $ab, $status, $frequency, $monster), $color);
+    $widget -> insert('end', sprintf("%3d:\t%-4s\t%2.0f%%\t", $ab, $status, $frequency), $color);
+    append_monster($widget, $monster);
 }
 
