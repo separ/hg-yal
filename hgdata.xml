@@ -1,0 +1,994 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<hg>
+<version>
+  <number>0.2</number>
+</version>
+<areas>
+  <area name="Hells">
+    <ignore name="Muscle Mass" />
+    <ignore name="Pile of Skulls" />
+    <ignore name="Bones" />
+    <ignore name="Barrier" />
+    <ignore name="Energy Barrier" />
+
+    <mob name="Black Abishai" race="Outsider" />
+    <mob name="Blue Abishai" race="Outsider" />
+    <mob name="Green Abishai" race="Outsider" />
+    <mob name="Red Abishai" race="Outsider" />
+    <mob name="White Abishai" race="Outsider" />
+    <mob name="Chosen of Tiamat" race="Outsider" paragon="1" />
+    <mob name="Superior Chosen of Tiamat" race="Outsider" paragon="2" />
+    <mob name="Elite Chosen of Tiamat" race="Outsider" paragon="3" />
+
+    <mob name="Advespa" race="Outsider" />
+    <mob name="Swarm Master" race="Outsider" paragon="1" />
+    <mob name="Superior Swarm Master" race="Outsider" paragon="2" heals="Cold 400%" />
+    <mob name="Elite Swarm Master" race="Outsider" paragon="3" heals="Cold 600%" />
+
+    <mob name="Amnizu" race="Outsider" />
+    <mob name="Ephasiarch" race="Outsider" paragon="1" />
+    <mob name="Superior Ephasiarch" race="Outsider" paragon="2" heals="Cold 400%"/>
+    <mob name="Elite Ephasiarch" race="Outsider" paragon="3" heals="Cold 600%"/>
+
+    <mob name="Arachill" race="Animal" />
+    <mob name="Frostweaver" race="Animal" paragon="1" />
+    <mob name="Superior Frostweaver" race="Animal" paragon="2" heals="Acid 400%" />
+    <mob name="Elite Frostweaver" race="Animal" paragon="3" heals="Acid 600%" />
+
+    <mob name="Ayperobos Swarm" race="Outsider" />
+    <mob name="Ayperobos Horde" race="Outsider" paragon="1" />
+    <mob name="Superior Ayperobos Horde" race="Outsider" paragon="2" />
+    <mob name="Elite Ayperobos Horde" race="Outsider" paragon="3" />
+
+    <mob name="Baatorian Green Steel Golem" race="Construct" />
+    <mob name="Masterwork Baatorian Green Steel Golem" race="Construct" paragon="1" />
+    <mob name="Superior Masterwork Baatorian Green Steel Golem" race="Construct" paragon="2" heals="Divine 400%" />
+    <mob name="Elite Masterwork Baatorian Green Steel Golem" race="Construct" paragon="3" heals="Divine 600%" />
+
+    <mob name="Barbazu" race="Outsider" />
+    <mob name="Barbazu Razor" race="Outsider" paragon="1" syn="Barbezu Razor" />
+    <mob name="Superior Barbazu Razor" race="Outsider" paragon="2" heals="Acid 400%" />
+    <mob name="Elite Barbazu Razor" race="Outsider" paragon="3" heals="Acid 600%" />
+
+    <mob name="Bezekira" race="Outsider" />
+    <mob name="Bezekira Prideleader" race="Outsider" paragon="1" />
+    <mob name="Superior Bezekira Prideleader" race="Outsider" paragon="2" heals="Cold 400%" />
+    <mob name="Elite Bezekira Prideleader" race="Outsider" paragon="3" heals="Cold 600%" />
+
+    <mob name="Brachina" race="Outsider" qual="2.0" />
+    <mob name="Brachina Seductrix" race="Outsider" paragon="1" qual="2.5" />
+    <mob name="Superior Brachina Seductrix" race="Outsider" paragon="2" heals="Pos 200%" qual="2.5" />
+    <mob name="Elite Brachina Seductrix" race="Outsider" paragon="3" heals="Pos 300%" qual="2.5" />
+
+    <mob name="Brood Serpent" race="Outsider" qual="3.0" />
+    <mob name="Firstborn" race="Outsider" paragon="1" qual="4.0" />
+    <mob name="Superior Firstborn" race="Outsider" paragon="2" heals="Magic 400%" qual="4.5" />
+    <mob name="Elite Firstborn" race="Outsider" paragon="3" heals="Magic 600%" qual="4.5" />
+
+    <mob name="Bueroza" race="Outsider" qual="3.0" />
+    <mob name="Magebane" race="Outsider" paragon="1" qual="4.0" />
+    <mob name="Superior Magebane" race="Outsider" paragon="2" heals="Magic 200%" qual="4.5" />
+    <mob name="Elite Magebane" race="Outsider" paragon="3" heals="Magic 300%" qual="4.5" />
+
+    <mob name="Cinderscale" race="Animal" />
+    <mob name="Cinderscale Broodmother" race="Animal" paragon="1" />
+    <mob name="Superior Cinderscale Broodmother" race="Animal" paragon="2" heals="Acid 400%"/>
+    <mob name="Elite Cinderscale Broodmother" race="Animal" paragon="3" heals="Acid 600%"/>
+
+    <mob name="Coldforge Construct" race="Construct" kb="Area" />
+    <mob name="Rimeforged Assembly" race="Construct" paragon="1" kb="Area" />
+    <mob name="Superior Rimeforged Assembly" race="Construct" paragon="2" heals="Cold 400%" kb="Area" />
+    <mob name="Elite Rimeforged Assembly" race="Construct" paragon="3" heals="Cold 600%" kb="Area" />
+
+    <mob name="Cornugon" race="Outsider" />
+    <mob name="Cornugon Taskmaster" race="Outsider" paragon="1" qual="2.0" />
+    <mob name="Superior Cornugon Taskmaster" race="Outsider" paragon="2" heals="Fire 400%" qual="2.5" />
+    <mob name="Elite Cornugon Taskmaster" race="Outsider" paragon="3" heals="Fire 600%" qual="2.5" />
+
+    <mob name="Dogai" race="Outsider" />
+    <mob name="Camizu" race="Outsider" paragon="1" qual="2.0" />
+    <mob name="Superior Camizu" race="Outsider" paragon="2" heals="Acid 400%" qual="2.5" />
+    <mob name="Elite Camizu" race="Outsider" paragon="3" heals="Acid 600%" qual="2.5" />
+
+    <mob name="Erinyes" race="Outsider" />
+    <mob name="Erinyes Vitiarch" race="Outsider" paragon="1" />
+    <mob name="Superior Erinyes Vitiarch" race="Outsider" paragon="2" heals="Cold 400%" />
+    <mob name="Elite Erinyes Vitiarch" race="Outsider" paragon="3" heals="Cold 600%" />
+
+    <mob name="Excruciarch" race="Outsider" />
+    <mob name="Excruciarch Inquisitor" race="Outsider" paragon="1" />
+    <mob name="Superior Excruciarch Inquisitor" race="Outsider" paragon="2" heals="Neg 200%" />
+    <mob name="Elite Excruciarch Inquisitor" race="Outsider" paragon="3" heals="Neg 300%" />
+
+    <mob name="Falxugon" race="Outsider" qual="2.0" />
+    <mob name="Vexiarch" race="Outsider" paragon="1" qual="2.0" />
+    <mob name="Superior Vexiarch" race="Outsider" paragon="2" heals="Sonic 200%" qual="2.5" />
+    <mob name="Elite Vexiarch" race="Outsider" paragon="3" heals="Sonic 300%" qual="2.5" />
+
+    <mob name="Gelugon" race="Outsider" />
+    <mob name="Gelidarch" race="Outsider" paragon="1" />
+    <mob name="Superior Gelidarch" race="Outsider" paragon="2" heals="Cold 400%" />
+    <mob name="Elite Gelidarch" race="Outsider" paragon="3" heals="Cold 600%" />
+
+    <mob name="Hamatula" race="Outsider" />
+    <mob name="Hamatula Scourge" race="Outsider" paragon="1" />
+    <mob name="Superior Hamatula Scourge" race="Outsider" paragon="2" heals="Neg 400%" />
+    <mob name="Elite Hamatula Scourge" race="Outsider" paragon="3" heals="Neg 600%" />
+
+    <mob name="Hell Hound" race="Animal" />
+    <mob name="Cereberean Hound" race="Animal" paragon="1" />
+    <mob name="Superior Cereberean Hound" race="Animal" paragon="2" heals="Elec 400%" />
+    <mob name="Elite Cereberean Hound" race="Animal" paragon="3" heals="Elec 600%" />
+
+    <mob name="Hell Leech" race="Animal" />
+    <mob name="Cloacal Leech" race="Animal" paragon="1" />
+    <mob name="Superior Cloacal Leech" race="Animal" paragon="2" heals="Acid 400%" />
+    <mob name="Elite Cloacal Leech" race="Animal" paragon="3" heals="Acid 600%" />
+
+    <mob name="Ice Fiend" race="Outsider" />
+    <mob name="Hyperborean Fiend" race="Outsider" paragon="1" syn="Hyperborian Fiend"/>
+    <mob name="Superior Hyperborean Fiend" race="Outsider" paragon="2" heals="Cold 400%" />
+    <mob name="Elite Hyperborean Fiend" race="Outsider" paragon="3" heals="Cold 600%" />
+
+    <mob name="Ice Reaver" race="Animal" />
+    <mob name="Algid Reaver" race="Animal" paragon="1" />
+    <mob name="Superior Algid Reaver" race="Animal" paragon="2" heals="Cold 400%" />
+    <mob name="Elite Algid Reaver" race="Animal" paragon="3" heals="Cold 600%" />
+
+    <mob name="Ichor of the Fallen" race="Outsider" qual="3.0" />
+    <mob name="Spoliated Ichor" race="Outsider" paragon="1" qual="4.0" />
+    <mob name="Superior Spoliated Ichor" race="Outsider" paragon="2" heals="Acid 400%" qual="4.5" />
+    <mob name="Elite Spoliated Ichor" race="Outsider" paragon="3" heals="Acid 600%" qual="4.5" />
+
+    <mob name="Imp" race="Outsider" />
+    <mob name="Hellion" race="Outsider" paragon="1" />
+    <mob name="Superior Hellion" race="Outsider" paragon="2" heals="Acid 400%" />
+    <mob name="Elite Hellion" race="Outsider" paragon="3" heals="Acid 600%" />
+
+    <mob name="Infernal Machine" race="Construct" kb="Area" />
+    <mob name="Hellfire Engine" race="Construct" paragon="1" kb="Area" />
+    <mob name="Superior Hellfire Engine" race="Construct" paragon="2" heals="Fire 400%" kb="Area" />
+    <mob name="Elite Hellfire Engine" race="Construct" paragon="3" heals="Fire 600%" kb="Area" />
+
+    <mob name="Kocrachon" race="Outsider" />
+    <mob name="Infestiarch" race="Outsider" paragon="1" />
+    <mob name="Superior Infestiarch" race="Outsider" paragon="2" heals="Neg 400%" />
+    <mob name="Elite Infestiarch" race="Outsider" paragon="3" heals="Neg 600%" />
+
+    <mob name="Kyton" race="Outsider" />
+    <mob name="Kyton Legionnaire" race="Outsider" paragon="1" />
+    <mob name="Superior Kyton Legionnaire" race="Outsider" paragon="2" heals="Sonic 400%" />
+    <mob name="Elite Kyton Legionnaire" race="Outsider" paragon="3" heals="Sonic 600%" />
+
+    <mob name="Lemure" race="Outsider" />
+    <mob name="Foul Lemure" race="Outsider" paragon="1" qual="2.0" />
+    <mob name="Superior Foul Lemure" race="Outsider" paragon="2" heals="Acid 400%" qual="2.5" />
+    <mob name="Elite Foul Lemure" race="Outsider" paragon="3" heals="Acid 600%" qual="2.5" />
+
+    <mob name="Living Cold" race="Outsider" kb="Area" />
+    <mob name="Fell Mistral" race="Outsider" paragon="1" kb="Area" />
+    <mob name="Superior Fell Mistral" race="Outsider" paragon="2" heals="Cold 400%" kb="Area" />
+    <mob name="Elite Fell Mistral" race="Outsider" paragon="3" heals="Cold 600%" kb="Area" />
+
+    <mob name="Maelephant" race="Outsider" />
+    <mob name="Unbound" race="Outsider" paragon="1" />
+    <mob name="Superior Unbound" race="Outsider" paragon="2" heals="Pos 400%" />
+    <mob name="Elite Unbound" race="Outsider" paragon="3" heals="Pos 600%" />
+
+    <mob name="Malebranche" race="Outsider" qual="3.0" />
+    <mob name="Ravening Malebranche" race="Outsider" paragon="1" qual="4.0" />
+    <mob name="Superior Ravening Malebranche" race="Outsider" paragon="2" heals="Elec 400%" qual="4.5" />
+    <mob name="Elite Ravening Malebranche" race="Outsider" paragon="3" heals="Elec 600%" qual="4.5" />
+
+    <mob name="Malefic Wind" race="Outsider" kb="Area" />
+    <mob name="Effluviarch" race="Outsider" paragon="1" kb="Area" />
+    <mob name="Superior Effluviarch" race="Outsider" paragon="2" heals="Elec 400%" kb="Area" />
+    <mob name="Elite Effluviarch" race="Outsider" paragon="3" heals="Elec 600%" kb="Area" />
+
+    <mob name="Mammon's Tears" race="Outsider" qual="3.0" />
+    <mob name="Dolorous Tear" race="Outsider" paragon="1" qual="4.0" />
+    <mob name="Superior Dolorous Tear" race="Outsider" paragon="2" heals="Acid 400%" qual="4.5" />
+    <mob name="Elite Dolorous Tear" race="Outsider" paragon="3" heals="Acid 600%" qual="4.5" />
+
+    <mob name="Minauran Murkfiend" race="Animal" />
+    <mob name="Minauran Rotscale" race="Animal" paragon="1" />
+    <mob name="Superior Minauran Rotscale" race="Animal" paragon="2" />
+    <mob name="Elite Minauran Rotscale" race="Animal" paragon="3" />
+
+    <mob name="Narzugon" race="Outsider" qual="2.0" />
+    <mob name="Narzugon Eye" race="Outsider" paragon="1" qual="2.5" />
+    <mob name="Superior Narzugon Eye" race="Outsider" paragon="2" heals="Pos 400%" qual="2.5" />
+    <mob name="Elite Narzugon Eye" race="Outsider" paragon="3" heals="Pos 600%" qual="2.5" />
+
+    <mob name="Nightmare" race="Outsider" />
+    <mob name="Elder Nag" race="Outsider" paragon="1" />
+    <mob name="Superior Elder Nag" race="Outsider" paragon="2" heals="Fire 400%" />
+    <mob name="Elite Elder Nag" race="Outsider" paragon="3" heals="Fire 600%" />
+
+    <mob name="Nupperibo" race="Outsider" />
+    <mob name="Inchoate Baatorian" race="Outsider" paragon="1" />
+    <mob name="Superior Inchoate Baatorian" race="Outsider" paragon="2" heals="Elec 400%" />
+    <mob name="Elite Inchoate Baatorian" race="Outsider" paragon="3" heals="Elec 600%" />
+
+    <mob name="Orthon" race="Outsider" qual="2.0" />
+    <mob name="Orthon Fist" race="Outsider" paragon="1" qual="2.5" />
+    <mob name="Superior Orthon Fist" race="Outsider" paragon="2" heals="Divine 400%" qual="2.5" />
+    <mob name="Elite Orthon Fist" race="Outsider" paragon="3" heals="Divine 600%" qual="2.5" />
+
+    <mob name="Osyluth" race="Outsider" />
+    <mob name="Rachugon" race="Outsider" paragon="1" qual="2.0" />
+    <mob name="Superior Rachugon" race="Outsider" paragon="2" heals="Cold 400%" qual="2.5" />
+    <mob name="Elite Rachugon" race="Outsider" paragon="3" heals="Cold 600%" qual="2.5" />
+
+    <mob name="Pit Fiend" race="Outsider" qual="3.0" />
+    <mob name="Aspirant of the Eight" race="Outsider" paragon="1" qual="4.0"/>
+    <mob name="Superior Aspirant of the Eight" race="Outsider" paragon="2" heals="Fire 400%" qual="4.5"/>
+    <mob name="Elite Aspirant of the Eight" race="Outsider" paragon="3" heals="Fire 600%" qual="4.5"/>
+
+    <mob name="Pyrexic Fume" race="Outsider" kb="Area" />
+    <mob name="Phlogiston Ferment" race="Outsider" paragon="1" kb="Area" />
+    <mob name="Superior Phlogiston Ferment" race="Outsider" paragon="2" heals="Fire 400%" kb="Area" />
+    <mob name="Elite Phlogiston Ferment" race="Outsider" paragon="3" heals="Fire 600%" kb="Area" />
+
+    <mob name="Rakshasa" race="Outsider" />
+    <mob name="Raja" race="Outsider" paragon="1" />
+    <mob name="Superior Raja" race="Outsider" paragon="2" heals="Elec 400%" />
+    <mob name="Elite Raja" race="Outsider" paragon="3" heals="Elec 400%" />
+
+    <mob name="Sahuagin" race="Outsider" />
+    <mob name="Elder Sahuagin" race="Outsider" paragon="1" />
+    <mob name="Superior Elder Sahuagin" race="Outsider" paragon="2" heals="Acid 400%" />
+    <mob name="Elite Elder Sahuagin" race="Outsider" paragon="3" heals="Acid 600%" />
+
+    <mob name="Soul Shell" race="Outsider" />
+    <mob name="Hollow Soul" race="Outsider" paragon="1" />
+    <mob name="Superior Hollow Soul" race="Outsider" paragon="2" heals="Cold 400%" />
+    <mob name="Elite Hollow Soul" race="Outsider" paragon="3" heals="Cold 600%" />
+
+    <mob name="Spinagon" race="Outsider" />
+    <mob name="Spiniarch" race="Outsider" paragon="1" />
+    <mob name="Superior Spiniarch" race="Outsider" paragon="2" heals="Magic 400%" />
+    <mob name="Elite Spiniarch" race="Outsider" paragon="3" heals="Magic 600%" />
+
+    <mob name="Swamp Devil" race="Outsider" />
+    <mob name="Fen Render" race="Outsider" paragon="1" />
+    <mob name="Superior Fen Render" race="Outsider" paragon="2" heals="Acid 400%" />
+    <mob name="Elite Fen Render" race="Outsider" paragon="3" heals="Acid 600%" />
+
+    <mob name="Galya" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="Besh'bak" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="Ysgret" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="Dogruuk" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="Sbikta" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="Ngdril" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="Fodorz" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="Ca'ctiik" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="T'kritz" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="Piraz" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="Baddabuz" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="Zgdros" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="Sasyi" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="Absklarg" race="Outsider" type="Miniboss 0" qual="2.0" />
+    <mob name="Dazgud" race="Outsider" type="Miniboss 0" qual="2.0" />
+
+    <mob name="Consort of Acid" race="Dragon" type="Miniboss 1" qual="4.0" />
+    <mob name="Consort of Bolts" race="Dragon" type="Miniboss 1" qual="4.0" />
+    <mob name="Consort of Flames" race="Dragon" type="Miniboss 1" qual="4.0" />
+    <mob name="Consort of Fumes" race="Dragon" type="Miniboss 1" qual="4.0" />
+    <mob name="Consort of Ice" race="Dragon" type="Miniboss 1" qual="4.0" />
+    <mob name="Ygdriz" race="Outsider" type="Miniboss 9" qual="4.0" />
+    <mob name="Shazdrak" race="Outsider" type="Miniboss 8" qual="4.0" />
+    <mob name="Padzaz" race="Outsider" type="Miniboss 8" qual="4.0" />
+    <mob name="Cho'dsak" race="Outsider" type="Miniboss 8" qual="4.0" />
+    <mob name="Farzgri" race="Outsider" type="Miniboss 8" qual="4.0" />
+    <mob name="Rk'trizib" race="Outsider" type="Miniboss 8" qual="4.0" />
+    <mob name="Pazdolg" race="Outsider" type="Miniboss 8" qual="4.0" />
+    <mob name="Qaddal" race="Outsider" type="Miniboss 8" qual="4.0" />
+    <mob name="Drakiz'niz" race="Outsider" type="Miniboss 8" qual="4.0" />
+    <mob name="Krakta'kri" race="Outsider" type="Miniboss 8" qual="4.0" />
+    <mob name="Gazra" race="Outsider" type="Miniboss 4" qual="4.0" heals="Fire demi" />
+    <mob name="Gob'daktan" race="Outsider" type="Miniboss 4" qual="4.0" />
+    <mob name="Plag" race="Outsider" type="Miniboss 9" qual="5.0" />
+    <mob name="Tiamat" race="Outsider" type="Boss 1" qual="5.0" />
+    <mob name="Archduke Dispater" race="Outsider" type="Boss 2" qual="5.0" />
+    <mob name="Quimath" race="Outsider" type="Boss 3" qual="5.0" />
+    <mob name="Belial" race="Outsider" type="Boss 4" qual="5.0" />
+    <mob name="Fierna" race="Outsider" type="Boss 4" qual="5.0" />
+    <mob name="The Nameless Pit Fiend" race="Outsider" type="Boss 5" qual="5.0" />
+    <mob name="Ancient Baatorian" race="Outsider" type="Boss 6" qual="5.0" />
+    <mob name="Baalzebul" race="Outsider" type="Boss 7" qual="5.0" />
+    <mob name="Mephistopheles" race="Outsider" type="Boss 8" qual="5.0" />
+    <mob name="Asmodeus" race="Outsider" type="Boss 9" qual="5.0" />
+  </area>
+
+  <area name="MoAD" />
+  <area name="Lolth" />
+  <area name="Immortal">
+    <map name="Hell Forge - Descent through the Abyss" />
+    <map name="Hell Forge - Hall of the Immortal" />
+    <mob name="Babau" race="Outsider" />
+    <mob name="Balor" race="Outsider" />
+    <mob name="Glabrezu" race="Outsider" />
+    <mob name="Hezrou" race="Outsider" />
+    <mob name="Marilith" race="Outsider" />
+    <mob name="Nabassu" race="Outsider" />
+    <mob name="Shadow Demon" race="Outsider" />
+    <mob name="Vrock" race="Outsider" />
+    <mob name="Immortal" type="Boss" race="Human" />
+  </area>
+
+  <area name="Maze of the Ancients">
+    <ignore name="Ancient Artifact" />
+    <mob name="Ancient Guardian" race="Undead" />
+    <mob name="Guardian" race="Undead" />
+    <mob name="Umbra" race="Outsider" />
+    <mob name="Dach'xilith'az'ichityl" race="Dragon" type="Boss" />
+  </area>
+
+  <area name="Feywild">
+    <map name="Feywild - Aviary" />
+    <map name="Feywild - Dancing Trees" />
+    <map name="Feywild - Forest Harp" />
+    <map name="Feywild - Bright Forest" />
+    <map name="Feywild - Misty Fields" />
+    <map name="Feywild - Gate of Stars" />
+    <map name="Feywild - Sidhe Moor" />
+    <map name="Feywild - Forest Grove" />
+    <map name="Feywild - Forest Lake" />
+    <map name="Feywild - Forest Ruins" />
+    <map name="Feywild - Phosphor Sea" />
+    <map name="Feywild - Thousand Falls" />
+    <map name="Feywild - Murky Forest" />
+    <map name="Feywild - Twilight Stones" />
+    <mob name="Balewisp" race="Elemental" />
+    <mob name="Bamboofolk" race="Plant" />
+    <mob name="Boggan" race="Gnome" />
+    <mob name="Brownie" race="Fey" />
+    <mob name="Cave Troll" race="Monstrous Humanoid" />
+    <mob name="Corollax" race="Magical Beast" />
+    <mob name="Dryad" race="Fey" />
+    <mob name="Faerie Dragon" race="Dragon" />
+    <mob name="Fey Owl" race="Magical Beast" />
+    <mob name="Fey Pigeonhawk" race="Magical Beast" />
+    <mob name="Fey Thrush" race="Magical Beast" />
+    <mob name="Firbolg" race="Giant" />
+    <mob name="Flamewisp" race="Elemental" />
+    <mob name="Forest Sprite" race="Fey" />
+    <mob name="Frostwisp" race="Elemental" />
+    <mob name="Jackdaw" race="Magical Beast" />
+    <mob name="Leprechaun" race="Fey" />
+    <mob name="Naiad" race="Fey" />
+    <mob name="Needlefolk" race="Plant" />
+    <mob name="Needler" race="Fey" />
+    <mob name="Nereid" race="Fey" />
+    <mob name="Nocker" race="Gnome" />
+    <mob name="Nymph" race="Fey" />
+    <mob name="Pixie" race="Fey" />
+    <mob name="Pooka" race="Fey" />
+    <mob name="Rascal" race="Fey" />
+    <mob name="Redcap" race="Gnome" />
+    <mob name="Ruttle" race="Gnome" />
+    <mob name="Satyr" race="Fey" />
+    <mob name="Shadar-Kai" race="Fey" />
+    <mob name="Shimmerling Swarm" race="Vermin" />
+    <mob name="Songwisp" race="Elemental" />
+    <mob name="Spriggan" race="Giant" />
+    <mob name="Swamp Troll" race="Monstrous Humanoid" />
+    <mob name="Treant" race="Plant" />
+    <mob name="Trickster" race="Fey" />
+    <mob name="Volodni" race="Plant" />
+    <mob name="Windwisp" race="Elemental" />
+  </area>
+  <area name="Elemental Planes">
+    <mob name="Air Fundamental" />
+    <mob name="Air Genasi Bard" />
+    <mob name="Air Genasi Monk" />
+    <mob name="Air Mephit" />
+    <mob name="Air Vortex" />
+    <mob name="Aoa" />
+    <mob name="Auran" />
+    <mob name="Backdraft" />
+    <mob name="Cloud Giant" />
+    <mob name="Conflagration Ooze" />
+    <mob name="Djinni" />
+    <mob name="Earth Drake" />
+    <mob name="Earth Fundamental" />
+    <mob name="Elder Aquan" />
+    <mob name="Elder Ignan" />
+    <mob name="Elder Terran" />
+    <mob name="Ether Scarab" />
+    <mob name="Ethereal Ooze" />
+    <mob name="Fire Drake" />
+    <mob name="Fire Fundamental" />
+    <mob name="Fire Genasi Rogue" />
+    <mob name="Fire Genasi Sorcerer" />
+    <mob name="Fire Giant" />
+    <mob name="Fire Vortex" />
+    <mob name="Flame Snake" />
+    <mob name="Flame Weird" />
+    <mob name="Flotsam Ooze" />
+    <mob name="Giant Eagle" />
+    <mob name="Greater Air Elemental" />
+    <mob name="Greater Earth Elemental" />
+    <mob name="Greater Fire Elemental" />
+    <mob name="Greater Water Elemental" />
+    <mob name="Hawk Air Animental" />
+    <mob name="Janni" />
+    <mob name="Large Air Elementite Swarm" />
+    <mob name="Large Earth Elementite Swarm" />
+    <mob name="Large Fire Elementite Swarm" />
+    <mob name="Large Water Elementite Swarm" />
+    <mob name="Least Air Elemental" />
+    <mob name="Least Fire Elemental" />
+    <mob name="Least Water Elemental" />
+    <mob name="Lesser Air Elemental" />
+    <mob name="Lesser Fire Elemental" />
+    <mob name="Lesser Water Elemental" />
+    <mob name="Primal Air Elemental" />
+    <mob name="Primal Earth Elemental" />
+    <mob name="Primal Fire Elemental" />
+    <mob name="Primal Water Elemental" />
+    <mob name="Riptide" />
+    <mob name="Salamander" />
+    <mob name="Salamander Noble" />
+    <mob name="Sirine" />
+    <mob name="Small Air Elementite Swarm" />
+    <mob name="Small Fire Elementite Swarm" />
+    <mob name="Small Water Elementite Swarm" />
+    <mob name="Spirit of the Air" />
+    <mob name="Stone Weird" />
+    <mob name="Sylph" />
+    <mob name="Sylph Noble" />
+    <mob name="Tempest" />
+    <mob name="Triton" />
+    <mob name="Undine Noble" />
+    <mob name="Water Drake" />
+    <mob name="Water Fundamental" />
+    <mob name="Water Genasi Cleric" />
+    <mob name="Water Genasi Ranger" />
+    <mob name="Water Vortex" />
+    <mob name="Water Weird" />
+    <mob name="Wind Scarab" />
+    <mob name="Xac-Yel" />
+    <mob name="Xac-Yij" />
+    <mob name="Xag-Az" />
+    <mob name="Xag-Ya" />
+    <mob name="Xap-Yaup" />
+    <mob name="Xeg-Yi" />
+    <mob name="Xel-Yan" />
+    <mob name="Xig-Yad" />
+    <mob name="Xod-Yar" />
+    <mob name="Xong-Yong" />
+    <mob name="Xor-Yost" />
+  </area>
+
+  <area name="Desert">
+    <map name="Vashyk's Ruin" />
+    <map name="The Great Plateau" />
+    <map name="Devariel Eyrie" />
+    <map name="Ruined Temple" />
+    <map name="Cinder Flats" />
+    <mob name="Breath of Bhaalus" noxp="1" race="Vermin" />
+    <mob name="Devariel" race="Aberration" />
+    <mob name="Devariel Warleader" race="Aberration" />
+    <mob name="Devariel Windtalker" race="Aberration" />
+    <mob name="Droc" race="Magical Beast" />
+    <mob name="Dust Elemental" race="Elemental" />
+    <mob name="Living Sand" race="Elemental" />
+    <mob name="Lost Soul of Vashyk" kb="Area" race="Undead" />
+    <mob name="Sander" race="Elemental" />
+    <mob name="Screeling" race="Outsider" />
+    <mob name="Silt Scarab" race="Animal" />
+    <mob name="Silt Scorp" race="Animal" />
+    <mob name="Xevil" race="Outsider" />
+    <mob name="Stinger Archer" race="Aberration" />
+    <mob name="Stinger Chief" race="Aberration" />
+    <mob name="Stinger Priest" race="Aberration" />
+    <mob name="Stinger Warrior" race="Aberration" />
+    <mob name="Gargantuan Sander" type="Miniboss" race="Elemental" />
+    <mob name="Hulking Sander" type="Miniboss" race="Elemental" />
+    <mob name="Massive Silt Scorp" race="Animal" type="Miniboss" />
+    <mob name="The Voice" type="Miniboss" race="Aberration" />
+  </area>
+  <area name="Dustbone">
+    <map name="Harbinger's Trail" />
+    <map name="The Furrow" />
+    <map name="Vashyk's Fall - The Pit" />
+    <map name="Lair of Dustbone" />
+    <ignore name="Statue, Small Male Elf" />
+    <mob name="Abimander" race="Outsider" kb="Area" />
+    <mob name="Barbed Devil" race="Outsider" />
+    <mob name="Dust Elemental" race="Elemental" />
+    <mob name="Flesher" race="Ooze" />
+    <mob name="Living Sand" race="Elemental" />
+    <mob name="Lost Soul of Vashyk" kb="Area" race="Undead" />
+    <mob name="Sander" race="Elemental" />
+    <mob name="Screeling" race="Outsider" />
+    <mob name="Silt Scarab" race="Animal" />
+    <mob name="Silt Scorp" race="Animal" />
+    <mob name="Xevil" race="Outsider" />
+    <mob name="Dustbone" race="Dragon" type="Boss" />
+  </area>
+  <area name="Locathah">
+    <map name="Locathah - Shoreline Reef" />
+    <map name="Locathah - Sulfurous Current" />
+    <map name="Locathah - Kelp Farm" />
+    <map name="Locathah - Sunken Fane of Eadro" />
+    <mob name="Dread Jelly" race="Magical Beast" />
+    <mob name="Hatchling Dragon Eel" race="Dragon" />
+    <mob name="Hatchling Dragon Turtle" race="Dragon" />
+    <mob name="Kelptender" race="Animal" />
+    <mob name="Locathah Artillerist" race="Reptilian" />
+    <mob name="Locathah Deepsinger" race="Reptilian" />
+    <mob name="Locathah Matriarch" race="Reptilian" />
+    <mob name="Locathah Scalecaster" race="Reptilian" />
+    <mob name="Locathah Schoolmaster" race="Reptilian" />
+    <mob name="Locathah Seastriker" race="Reptilian" />
+    <mob name="Locathah Warrior" race="Reptilian" />
+    <mob name="Locathah Wavecaller" race="Reptilian" />
+    <mob name="Sh'klss, the Sulfurous Maw" race="Reptilian" heals="Fire 800%" />
+    <mob name="Singer of Eadro" race="Reptilian" />
+    <mob name="Spawning Jelly" race="Ooze" />
+    <mob name="Spiritual Current" race="Construct" />
+    <mob name="Spiritual Trident" race="Construct" />
+    <mob name="Sulfurous Lobster" race="Vermin" heals="Fire 700%" />
+    <mob name="Trench Devourer" race="Magical Beast" heals="Fire 500%" />
+    <mob name="Venomous Crab" race="Vermin" />
+    <mob name="Venomous Lobster" race="Vermin" />
+    <mob name="Water Sprite" race="Fey" />
+    <mob name="Whirlpool" race="Elemental" />
+    <mob name="Aspect of Panzuriel" race="Outsider" type="Miniboss" />
+  </area>
+  <area name="Ssithrak">
+    <map name="Translation Chamber" />
+    <map name="Parallel Dimension - Mustering Grounds" />
+    <map name="Parallel Dimension - Barracks" />
+    <map name="Parallel Dimension - Academy" />
+    <map name="Parallel Dimension - Temple" />
+    <map name="Parallel Dimension - Ssssy'is' Abode" />
+    <ignore name="Strange Metal Sphere" />
+    <ignore name="Strange Metal Device" />
+    <ignore name="Metal Orb" />
+    <mob name="Gesst'wa" race="Animal" />
+    <mob name="Gesst'wa Hatchling" race="Animal" />
+    <mob name="S'gob Slia" race="Construct" />
+    <mob name="Ssithrak B'ssgir" race="Reptilian" />
+    <mob name="Ssithrak B'ssgir S'gra" race="Reptilian" />
+    <mob name="Ssithrak B'ssgir Sescrom" race="Reptilian" />
+    <mob name="Ssithrak G'sssyt" race="Reptilian" />
+    <mob name="Ssithrak G'sssyt Massad" race="Reptilian" />
+    <mob name="Ssithrak G'sssyt Masss'adis" race="Reptilian" />
+    <mob name="Ssithrak G'sssyt Passri" race="Reptilian" />
+    <mob name="Ssithrak G'sssyt S'gra" race="Reptilian" />
+    <mob name="Ssithrak M'hasst" race="Reptilian" />
+    <mob name="Ssithrak M'hasst B'sr" race="Reptilian" />
+    <mob name="Ssithrak M'hasst S'gra" race="Reptilian" />
+    <mob name="Ssithrak M'hasst T'sat" race="Reptilian" />
+    <mob name="Ssithrak M'nag" race="Reptilian" />
+    <mob name="Ssithrak M'nag S'gra" race="Reptilian" />
+    <mob name="Ssithrak S'bassa" race="Reptilian" />
+    <mob name="Ssithrak S'jab" race="Reptilian" />
+    <mob name="Ssithrak S'jab S'gra" race="Reptilian" />
+    <mob name="Ssithrak S'jab Sedis" race="Reptilian" />
+    <mob name="Ssithrak S'zhost" race="Reptilian" />
+    <mob name="Ssithrak S'zhost S'gra" race="Reptilian" />
+    <mob name="Ssithrak S'jab Z'hedi" race="Reptilian" type="Miniboss"/>
+    <mob name="Ssssy'is, Goddess-Empress of Ssithra and Devourer of Worlds" race="Dragon" type="Boss"/>
+  </area>
+  <area name="Illithids">
+    <map name="Axis Eurundia" />
+    <map name="Penumbra - Mid-ring Bore" />
+    <map name="Penumbra - Geode Colony" />
+    <map name="Penumbra - Thrall Housing" />
+    <map name="Penumbra - Physicists' Hall" />
+    <map name="Penumbra - Halls of Solitude" />
+    <map name="Penumbra - Biological Enclave" />
+    <map name="Penumbra - The Overmind Complex" />
+    <ignore name="Cloning Tube" />
+    <ignore name="Psi-orb" />
+    <ignore name="Psi Shard" />
+    <ignore name="Sensor Array" />
+    <ignore name="Field Generator" />
+    <ignore name="Illithid Crate" />
+    <ignore name="Illithid Psiorb" />
+    <mob name="Annihilator" race="Construct" />
+    <mob name="Cloned Hellspawn Golem" race="Construct" noxp="1" />
+    <mob name="Gith Thrall" race="Outsider" />
+    <mob name="Grimlock Thrall" race="Monstrous Humanoid" />
+    <mob name="Illithid Biokineticist" race="Aberration" />
+    <mob name="Illithid Cerebremancer" race="Aberration" />
+    <mob name="Illithid Dominator" race="Aberration" />
+    <mob name="Illithid Ectocloner" race="Aberration" />
+    <mob name="Illithid Graviter" race="Aberration" />
+    <mob name="Illithid Temperer" race="Aberration" />
+    <mob name="Illithid Thrallherd" race="Aberration" />
+    <mob name="Intellect Render" race="Aberration" />
+    <mob name="Shrill" noxp="1" race="Aberration" />
+    <mob name="Illithid Thrall Master" type="Miniboss" race="Aberration" />
+    <mob name="Illithid Fieldmaster" type="Miniboss" race="Aberration" />
+    <mob name="Illithid Head Propagator" type="Miniboss" race="Aberration" />
+    <mob name="Illithid Master Prescient" type="Miniboss" race="Aberration" />
+    <mob name="The Surrogate" type="Boss" race="Aberration" />
+  </area>
+
+  <area name="Myconids">
+    <mob name="Compost Worm" race="Vermin" />
+    <mob name="Fell Shrieker" race="Plant" />
+    <mob name="Fungal Tender" race="Vermin" />
+    <mob name="Myconid Caller" race="Plant" />
+    <mob name="Myconid Flinger" race="Plant" />
+    <mob name="Myconid Flow Guider" race="Plant" />
+    <mob name="Myconid Scout" race="Plant" />
+    <mob name="Myconid Warrior" race="Plant" />
+    <mob name="Refuse Blossom" race="Ooze" />
+    <mob name="Russet Mold" race="Ooze" />
+    <mob name="Thorn Hound" race="Plant" />
+    <mob name="Vegepygmy Guard" race="Plant" />
+    <mob name="Vegepygmy Rider" race="Plant" />
+    <mob name="Vegepygmy Singer" race="Plant" />
+    <mob name="Vegepygmy Warrior" race="Plant" />
+    <mob name="The Agitator" race="Magical Beast" type="Miniboss" />
+    <mob name="The Germinator" type="Miniboss" race="Vermin" />
+    <mob name="King Myxo Dreamcaller" race="Plant" type="Boss" />
+  </area>
+
+  <area name="Toyshop">
+    <map name="Toyshop - Supply Mine" />
+    <map name="Toyshop - Outer Workshop" />
+    <map name="Toyshop - Inner Workshop" />
+    <ignore name="Box" />
+    <ignore name="Control Panel" />
+    <ignore name="Lever" />
+    <mob name="Anbaric Force" race="Elemental" />
+    <mob name="Clockwork Guardian" race="Construct" noxp="1" />
+    <mob name="Codex Artefem" race="Construct" />
+    <mob name="Crossbowman" race="Gnome" />
+    <mob name="Grenadier" race="Gnome" />
+    <mob name="Liquid Steel" race="Ooze" />
+    <mob name="Mine Cutter" race="Construct" />
+    <mob name="Mine Grinder" race="Construct" />
+    <mob name="Mine Transporter" race="Construct" />
+    <mob name="Minogon" race="Construct" />
+    <mob name="Oil Fiend" race="Magical Beast" />
+    <mob name="Oil Snake" race="Animal" />
+    <mob name="Prime Mover" race="Elemental" />
+    <mob name="Scarecrow" race="Construct" />
+    <mob name="Spinning Wheel" race="Construct" />
+    <mob name="Steam Cannon" />
+    <mob name="Steam Mephit" race="Elemental" />
+    <mob name="The Foreman" race="Gnome" type="Miniboss" />
+    <mob name="Sphere of Annihilation" race="Construct" type="Miniboss" />
+    <mob name="The Toymaker" race="Gnome" type="Boss" />
+  </area>
+
+  <area name="Uroboros">
+    <ignore name="Ice Barrier" />
+    <ignore name="Phylactery" />
+    <ignore name="Black Powder Barrel" />
+    <mob name="Dire Polar Bear" race="Animal" />
+    <mob name="Dire Winter Wolf" race="Magical Beast" />
+    <mob name="Frostwere" race="Shapechanger" />
+    <mob name="Frostwere Shaman" race="Shapechanger" />
+    <mob name="Frozen Arcanist" race="Undead" />
+    <mob name="Frozen Flume" race="Elemental" />
+    <mob name="Frozen Wraith" race="Undead" />
+    <mob name="Glacial Flow" race="Ooze" />
+    <mob name="Ice Elemental" race="Elemental" />
+    <mob name="Ice Mephit" race="Elemental" />
+    <mob name="Mountain Fiend" race="Magical Beast" />
+    <mob name="Remorhaz Larva" race="Magical Beast" />
+    <mob name="Spawn of Uroboros" race="Dragon" />
+    <mob name="Undead White Dragonkin" race="Undead" />
+    <mob name="White Dragonkin Berserker" race="Dragon" />
+    <mob name="White Dragonkin Priest" race="Dragon" />
+    <mob name="White Dragonkin Warleader" race="Dragon" />
+    <mob name="White Dragonkin Warrior" race="Dragon" />
+    <mob name="Winter Fiend" race="Magical Beast" />
+    <mob name="Yeti Disciple" race="Monstrous Humanoid" />
+    <mob name="Yeti Hurler" race="Monstrous Humanoid" />
+    <mob name="Yeti Shaman" race="Monstrous Humanoid" />
+    <mob name="Yeti Warrior" race="Monstrous Humanoid" />
+    <mob name="Nandaxalus the Frost Lich" race="Undead" type="Miniboss" />
+    <mob name="Yeti Chief" race="Monstrous Humanoid" type="Miniboss" />
+    <mob name="Uroboros, Great Wyrm of the Northern Wastes" race="Dragon" type="Boss" />
+  </area>
+
+  <area name="Dulvuroth">
+    <map name="Watchtower of Kol'dur'ok - Lower Level" />
+    <map name="Watchtower of Kol'dur'ok - Upper Level" />
+    <map name="Catacombs of Dulvuroth - Upper Level" />
+    <map name="Catacombs of Dulvuroth - Lower Level" />
+    <mob name="Chilblain" race="Aberration" />
+    <mob name="Entombed" race="Undead" />
+    <mob name="Frostbite Swarm" race="Vermin" />
+    <mob name="Frozen Arcanist" race="Undead" />
+    <mob name="Frozen Wraith" race="Undead" />
+    <mob name="Ice Gargoyle" race="Construct" />
+    <mob name="Ice Golem" race="Construct" />
+    <mob name="Ice Weird" race="Monstrous Humanoid" />
+    <mob name="Icegaunt" race="Undead" />
+    <mob name="Quell" race="Undead" />
+    <mob name="Snow Spider" race="Vermin" />
+    <mob name="Spectral Lyrist" race="Undead" />
+    <mob name="Voidwraith" race="Elemental" />
+    <mob name="Marzanna" race="Monstrous Humanoid" type="Miniboss" />
+    <mob name="Qorrashi" race="Elemental" type="Miniboss" />
+    <mob name="The Chaplain" race="Undead" type="Miniboss" />
+    <mob name="Dulvuroth" race="Undead" type="Boss" />
+  </area>
+
+  <area name="Pit of Moliation">
+    <map name="Pit of Moliation - First Deep" />
+    <map name="Pit of Moliation - Tenebrous Fall" />
+    <map name="Pit of Moliation - Second Deep" />
+    <map name="Pit of Moliation - Heart of Change" />
+    <ignore name="Tome of Torment" />
+    <ignore name="Codex of Suffering" />
+    <ignore name="Torture Victim" />
+    <ignore name="Vines" />
+    <mob name="Arcanaloth" race="Outsider" />
+    <mob name="Baernaloth" race="Outsider" />
+    <mob name="Black Moliator" race="Aberration" />
+    <mob name="Book of Pain" race="Construct" noxp="1" />
+    <mob name="Canoloth" race="Outsider" />
+    <mob name="Creeping Despair" race="Ooze" />
+    <mob name="Death of the Body" race="Elemental" />
+    <mob name="Death of the Soul" race="Elemental" />
+    <mob name="Dergholoth" race="Outsider" />
+    <mob name="Ember Wisp" race="Magical Beast" />
+    <mob name="Grey Moliator" race="Aberration" />
+    <mob name="Hadean Leech" race="Vermin" />
+    <mob name="Hydroloth" race="Outsider" />
+    <mob name="Marraenoloth" race="Outsider" />
+    <mob name="Meenlock Biter" race="Aberration" />
+    <mob name="Meenlock Gouger" race="Aberration" />
+    <mob name="Meenlock Hater" race="Aberration" />
+    <mob name="Meenlock Spitter" race="Aberration" />
+    <mob name="Mezzoloth" race="Outsider" />
+    <mob name="Moliation Vine" race="Plant" />
+    <mob name="Nycaloth" race="Outsider" />
+    <mob name="Piscoloth" race="Outsider" />
+    <mob name="Plutonean Golem" race="Construct" />
+    <mob name="Red Moliator" race="Aberration" />
+    <mob name="Wasting Sickness" race="Ooze" />
+    <mob name="Yagnoloth" race="Outsider" />
+    <mob name="Gloom of Destruction" type="Miniboss" race="Outsider" />
+    <mob name="Gloom of Lies" type="Miniboss" race="Outsider" />
+    <mob name="Gloom of Tears" type="Miniboss" race="Outsider" />
+    <mob name="Guardian of Khin-Oin" type="Miniboss" race="Outsider" />
+    <mob name="Hand of Mydianchlarus" type="Boss" race="Outsider" />
+  </area>
+
+  <area name="Beholders">
+    <mob name="Acolyte of the Eye" race="Aberration" />
+    <mob name="Death's Kiss" race="Aberration" />
+    <mob name="Devotee of the Eye" race="Aberration" />
+    <mob name="Firegrub" race="Animal" />
+    <mob name="Putrescent Orb" race="Aberration" />
+    <mob name="Zorgbot the All Seeing Eye" type="Boss" race="Aberration" />
+  </area>
+
+  <area name="Pyramid">
+    <ignore name="Stone Door" />
+    <ignore name="Pyramid Energy Focus" />
+    <mob name="Anymental" race="Elemental" />
+    <mob name="Dedicated" race="Undead" />
+    <mob name="Guardian of Earth" race="Elemental" />
+    <mob name="Guardian of Fire" race="Elemental" />
+    <mob name="Guardian of Water" race="Elemental" />
+    <mob name="Guardian of Wind" race="Elemental" />
+    <mob name="Heartseeker Scarab" race="Animal" />
+    <mob name="Lost Soul of Vashyk" kb="Area" race="Undead" />
+    <mob name="Pharaoh's Bonded" race="Undead" />
+    <mob name="Pharaoh's Chosen" race="Undead" />
+    <mob name="Soul Devourer" race="Undead" />
+    <mob name="Anhur's Avatar" type="Miniboss" race="Elemental" />
+    <mob name="Set's Avatar" type="Miniboss" race="Elemental" />
+    <mob name="The Black Pharaoh" race="Undead" type="Boss" />
+  </area>
+
+  <area name="Rona">
+    <ignore name="Sigil of Mystra" />
+    <mob name="Dum'mrenatha" race="Animal" />
+    <mob name="Gakra'Rek" race="Animal" />
+    <mob name="Halave" race="Vermin" />
+    <mob name="Pharlan Chiara" race="Monstrous Humanoid" />
+    <mob name="Pharlan Guard" race="Monstrous Humanoid" />
+    <mob name="Pharlan Klashda" race="Monstrous Humanoid" />
+    <mob name="Pharlan Lashanka" race="Monstrous Humanoid" />
+    <mob name="Pharlan Otoe" race="Monstrous Humanoid" />
+    <mob name="Pharlan Sephae" race="Monstrous Humanoid" />
+    <mob name="Raptornis" race="Animal" />
+    <mob name="Saya'Cymediah" race="Animal" />
+    <mob name="Tigal" race="Vermin" />
+    <mob name="Aria'Arkon" race="Monstrous Humanoid" type="Miniboss" />
+    <mob name="Baragior'Bala" race="Monstrous Humanoid" type="Miniboss" />
+    <mob name="Domi'Chufar" race="Monstrous Humanoid" type="Miniboss" />
+    <mob name="Gry'Kiva" race="Monstrous Humanoid" type="Miniboss" />
+    <mob name="Nubiko'gyandar" race="Animal" type="Miniboss" />
+    <mob name="Regni'Keliak" race="Monstrous Humanoid" type="Miniboss" />
+    <mob name="High Priest Rashla'El" race="Monstrous Humanoid" type="Boss" />
+  </area>
+
+  <area name="Hive">
+    <ignore name="Cacoon" />
+    <ignore name="Egg" />
+    <mob name="Ant Lieutenant" race="Vermin" />
+    <mob name="Ant Queen" race="Vermin" />
+    <mob name="Beetle Lieutenant" race="Vermin" />
+    <mob name="Bloodsilk Spider" race="Magical Beast" />
+    <mob name="Bombardier Beetle" race="Vermin" />
+    <mob name="Burrow Root" race="Plant" />
+    <mob name="Dark Tentacles" race="Aberration" />
+    <mob name="Drone Ant" race="Vermin" />
+    <mob name="Ettercap Darkweaver" race="Aberration" />
+    <mob name="Ettercap Fang" race="Aberration" />
+    <mob name="Ettercap Spinner" race="Aberration" />
+    <mob name="Fetid Fungus" race="Plant" />
+    <mob name="Fire Ant" race="Vermin" />
+    <mob name="Fire Bomb Beetle" race="Vermin" />
+    <mob name="Gas Bomb Beetle" race="Vermin" />
+    <mob name="Green Slime" race="Ooze" />
+    <mob name="Guard Ant" race="Vermin" />
+    <mob name="Hive Mother" race="Magical Beast" />
+    <mob name="Howler Wasp" race="Aberration" />
+    <mob name="Inferno Spider" race="Magical Beast" />
+    <mob name="Knell Beetle" race="Vermin" />
+    <mob name="Omni-Rat Basal Ganglion" race="Magical Beast" />
+    <mob name="Omni-Rat Chewer" race="Magical Beast" />
+    <mob name="Omni-Rat Devourer" race="Magical Beast" />
+    <mob name="Omni-Rat Ganglion" race="Magical Beast" />
+    <mob name="Omni-Rat Mutilator" race="Magical Beast" />
+    <mob name="Omni-Rat Predator" race="Magical Beast" />
+    <mob name="Phase Wasp" race="Magical Beast" />
+    <mob name="Prismatic Dragonfly" race="Dragon" />
+    <mob name="Ruin Swarm" race="Vermin" />
+    <mob name="Shadow Spider" race="Magical Beast" />
+    <mob name="Soldier Ant" race="Vermin" />
+    <mob name="Spider King" race="Aberration" />
+    <mob name="Swarm Spider" race="Vermin" />
+    <mob name="The Omni-Rat Overmind" race="Magical Beast" />
+    <mob name="Widowmaker" race="Magical Beast" />
+    <mob name="Worker Ant" race="Vermin" />
+  </area>
+
+  <area name="Elysium">
+    <map name="Elysium - Amoria" />
+    <map name="Elysium - Eronia" />
+    <map name="Elysium - Belierin" />
+    <map name="Elysium - Thalasia" />
+    <map name="Elysium - Fortress of the Sun" />
+    <ignore name="Sack" />
+    <ignore name="Sacks" />
+    <ignore name="Urn" />
+    <ignore name="Stone" />
+    <ignore name="Branch" />
+    <mob name="Astral Deva" race="Outsider" />
+    <mob name="Avoral" race="Shapechanger" />
+    <mob name="Blink Dog" race="Magical Beast" />
+    <mob name="Cervidal" race="Shapechanger" />
+    <mob name="Dancing Vorpal Greatsword" race="Construct" />
+    <mob name="Deathless Champion" race="Undead" />
+    <mob name="Deathless Paladin" race="Undead" />
+    <mob name="Deathless Priestess" race="Undead" />
+    <mob name="Deathless Slinger" race="Undead" />
+    <mob name="Djinni" race="Outsider" />
+    <mob name="Elysian Bear" race="Animal" />
+    <mob name="Elysian Boar" race="Animal" />
+    <mob name="Elysian Carillon" race="Elemental" />
+    <mob name="Elysian Thrush" race="Magical Beast" />
+    <mob name="Elysian Waterspout" race="Elemental" />
+    <mob name="Equinal" race="Shapechanger" />
+    <mob name="Hound Archon" race="Outsider" />
+    <mob name="Lantern Archon" race="Outsider" />
+    <mob name="Leonal" race="Shapechanger" />
+    <mob name="Lupinal" race="Shapechanger" />
+    <mob name="Monadic Deva" race="Outsider" />
+    <mob name="Movanic Deva" race="Outsider" />
+    <mob name="Planetar" race="Outsider" />
+    <mob name="Prismatic Golem" race="Construct" />
+    <mob name="Silver Dragonkin Monk" race="Dragon" />
+    <mob name="Silver Dragonkin Sorcerer" race="Dragon" />
+    <mob name="Solar" race="Outsider" />
+    <mob name="Ursinal" race="Shapechanger" />
+    <mob name="Young Silver Dragon" race="Dragon" />
+    <mob name="Phoenix" race="Magical Beast" type="Miniboss" />
+    <mob name="Galardrim Sunseer, Keeper of Dawn" type="Miniboss" race="Outsider" />
+    <mob name="Mikalya Shadowmane" race="Shapechanger" type="Miniboss" />
+    <mob name="Kyrinth Frostfang" race="Dragon" type="Miniboss" />
+    <mob name="The Beast of Belierin" race="Reptilian" type="Miniboss" />
+    <mob name="Pelor, The Shining One" race="Outsider" type="Boss" />
+  </area>
+
+  <area name="Aboleths">
+    <map name="Forgotten Sea - Pelagic Descent" />
+    <map name="Forgotten Sea - Abyssal Overlook" />
+    <map name="Lost in Space and Time" />
+    <map name="Shuzantuhal - Far Realm Shallows" />
+    <map name="Shuzantuhal - Gate of Achak-Thon" />
+    <map name="Shuzantuhal - Gate of Ilsharvesh" />
+    <ignore name="Necromantic Barrier" />
+    <ignore name="Boulder" />
+    <ignore name="Curved Bench" />
+    <ignore name="Skeletal Corpse" />
+    <mob name="Aboleth" race="Aberration" />
+    <mob name="Aboleth Savant" race="Aberration" />
+    <mob name="Cildabrin" race="Aberration" />
+    <mob name="Crystal Ooze" race="Ooze" heals="Elec 500%" />
+    <mob name="Devastation Crab" race="Vermin" />
+    <mob name="Dream Larva" race="Vermin" />
+    <mob name="Eidolon" race="Construct" />
+    <mob name="Eldest" race="Aberration" />
+    <mob name="Emissary Shu-Klatraoth" race="Aberration" />
+    <mob name="Firstforged Eidolon" race="Construct" />
+    <mob name="Flame of Madness" race="Fey" />
+    <mob name="Flux Slime" race="Ooze" />
+    <mob name="Fog of Dreams" race="Fey" />
+    <mob name="Gibbering Mouther" race="Aberration" />
+    <mob name="Greater Skum Thrall" race="Reptilian" />
+    <mob name="Kuo-Toa Thrall" race="Monstrous Humanoid" />
+    <mob name="Lesser Eidolon" race="Construct" />
+    <mob name="Lesser Skum Thrall" race="Reptilian" />
+    <mob name="Marid" race="Elemental" />
+    <mob name="Mist of Insanity" race="Fey" />
+    <mob name="Mordu-that-Was" race="Aberration" />
+    <mob name="Mu Spore" race="Plant" />
+    <mob name="Neh-Thalggu" race="Aberration" />
+    <mob name="Pelagic Mite" race="Vermin" />
+    <mob name="Phane" race="Outsider" />
+    <mob name="Pseudonatural Crab" race="Vermin" />
+    <mob name="Pseudonatural Goblin Shark" race="Magical Beast" />
+    <mob name="Pseudonatural Great White" race="Magical Beast" />
+    <mob name="Pseudonatural Hammerhead" race="Magical Beast" />
+    <mob name="Pseudonatural Mako" race="Magical Beast" />
+    <mob name="Pseudonatural Megalodon" race="Magical Beast" />
+    <mob name="Ruin Swarm" race="Vermin" />
+    <mob name="Screeching Eel" race="Animal" />
+    <mob name="Shaboath" race="Construct" />
+    <mob name="Soulbound" race="Undead" />
+    <mob name="Ulrexis the Wanderer" race="Undead" />
+    <mob name="Witchlight" race="Fey" />
+    <mob name="Ildrith Blackpool" race="Dragon" />
+  </area>
+
+  <area name="*">
+    <ignore name="Epic Wall of Stone" />
+    <ignore name="Wall of Stone" />
+    <ignore name="Door" />
+    <mob name="Rat" noxp="1" />
+  </area>
+</areas>
+<summons>
+  <summon name="Avatar of Doom" />
+  <summon name="Ensnared Balor" />
+  <summon name="Legendary Lammasu" />
+  <summon name="Legendary Treant" />
+  <summon name="Legendary Dragon" />
+  <summon name="Epic Lammasu" />
+  <summon name="Epic Dracolich" />
+  <summon name="Epic Blackguard Fiend" />
+  <summon name="Epic Treant" />
+  <summon name="Summoned Balor" />
+  <summon name="Summoned Red Dragon" />
+  <summon name="Elder Radiance Elemental" />
+</summons>
+<ignoremaps>
+  <map name="Limbo" />
+  <map name="Town of Ascension" />
+  <map name="Docks of Ascension" />
+  <map name="The Voyage" />
+  <map name="Bank of Waukeen" />
+  <map name="Zerial's Workshop" />
+  <map name="The Wandering Wyrm" />
+  <map name="Merchants Emporium" />
+  <map name="Item Shop" />
+  <map name="Guild Sheinja - Tropical Paradise" />
+  <map name="Guild Sheinja - Hall" />
+  <map name="Sheinja - Guildhall" />
+  <map name="Crossroads" />
+  <map name="Sage's Home" />
+  <map name="Guild Dark Templars - Exterior" />
+  <map name="Guild Untouchables - Castle" />
+  <map name="Guild Ahala - Hall" />
+</ignoremaps>
+</hg>

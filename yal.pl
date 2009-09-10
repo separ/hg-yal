@@ -35,9 +35,12 @@ use Tk::ItemStyle;
 use Date::Format;
 use Date::Parse;
 
+use XML::Simple;
 use subs qw/beep/;
 use warnings;
 use strict;
+
+import_hgdata_xml();
 
 my $version = "0.1.3b";
 my $kills = 0;
@@ -288,7 +291,10 @@ my %OPTIONS = ("font" => "Times",
 	       "showstatchecks" => 1,
 	       "catchtoonname" => 1,
 	       "showparagons" => 1,
-	       "hellentrymessagebox" => 1
+	       "hellentrymessagebox" => 1,
+
+		# new options added by Separ
+		'showmonsterrace' => 0
 	       );
 
 
@@ -674,13 +680,15 @@ sub parse_log_file {
 	#
 	if (/(.+) damages (.+): (\d+) \((.+)\)/) {
 	    my ($attacker, $defender, $total, $damages) = ($1, $2, $3, $4);
-	    
+
+	    next if hg_ignore_enemy($defender); # some things (like walls, doors, ...) should be ignored
+
 	    $damage_done{$attacker} += $total;                   # sum for attacker
 	    $damage_taken{$defender} += $total;                  # sum for defender
 	    $TotalDamage{$attacker}{$defender} += $total;        # stores attacker and defender
 	    
 	    my $meleehit = 0;
-	    $meleehit = 1 if ($damages =~ /\d+ Physical/);
+	    $meleehit = 1 if ($damages =~ /\d+ Physical/); # TODO: find out if we catch bigby spells here
 	    
 	    # Now make sure to keep information about which damage types that are actually doing damage
 	    # Stole this idea and code from Kins. Ty :)
@@ -734,6 +742,9 @@ sub parse_log_file {
 	#
 	if (/(.+ \: )?(.+) attacks (.+) : \*(hit|miss|critical hit|parried|target concealed: (\d+)%)\* : \((\d+) \+ (\d+)/) {
 	    my ($attacker, $defender, $roll, $ab) = ($2, $3, $6, $7);
+
+	    next if hg_ignore_enemy($defender);
+
 	    $status = $4;
 	    $status = "crit" if $status eq "critical hit";
 	    $status = $5."%" if (defined($5));
@@ -921,7 +932,8 @@ sub parse_log_file {
 	   else {
 	       # Check if the monster was a paragon
 	       $totalmobkills++;
-	       $paracount{$PARAMONSTERS{$2}}++ if (hg_is_para($2));
+		my $pl = hg_para_level($2);
+	       $paracount{$pl}++ if ($pl);
 	   }
        
 	   # Hmm. Still counting this separately for the player. That is not necessary. Should be integrated with the general hash
@@ -1813,6 +1825,10 @@ sub dialog_program_options {
 				     -variable => \$OPTIONS{"otherspells"}
 				     ) -> pack(-anchor=>"w");
 
+	$viewsetup->Checkbutton(-text => "Show monster race", 
+				     -variable => \$OPTIONS{"showmonsterrace"}
+				     ) -> pack(-anchor=>"w");
+
 	$options_dialog->Checkbutton(-text => "Capture toon name from scry and login", 
 				     -variable => \$OPTIONS{"catchtoonname"}
 				     ) -> pack(-anchor=>"w");
@@ -2522,14 +2538,29 @@ sub load_configuration {
 #
 # some helper functions in preparation to using hgdata.xml
 #
-sub hg_is_para {
+my %hgmonsters = ();
+my %hg_ignore_enemies = ();
+
+sub hg_para_level {
     my $monster = shift;
-    return exists($PARAMONSTERS{$monster});
+    if (exists($hgmonsters{$monster})) {
+	return $hgmonsters{$monster}{'paragon'} || 0;
+    }
+    return 0; #exists($PARAMONSTERS{$monster}) ? $PARAMONSTERS{$monster} : 0;
 }
 
 sub hg_do_not_hit {
     my $monster = shift;
-    return exists($DONOTHIT{$monster});
+    if (exists($hgmonsters{$monster})) {
+	return exists($hgmonsters{$monster}{'kb'}); # eq 'Area';
+    }
+    return 0;
+    #return exists($DONOTHIT{$monster});
+}
+
+sub hg_ignore_enemy {
+    my $monster = shift;
+    return exists($hg_ignore_enemies{$monster});
 }
 
 sub append_monster {
@@ -2537,21 +2568,47 @@ sub append_monster {
 
     my $color = 'white';
     my $flags = '';
+    my $heals = '';
 
-    if (hg_is_para($monster)) {
-	my $pl = $PARAMONSTERS{$monster}; # para level
-	$flags .= "P$pl";
-	$color = ($pl == 1) ? 'yellow' : 'orange';
-    }
-    if (hg_do_not_hit($monster)) {
-	$flags .= 'D';
-	$color = 'red';
-    }
-    if ($flags) {
-	$flags = " [$flags]";
+    if (exists($hgmonsters{$monster})) {
+	my $m = $hgmonsters{$monster};
+	if (exists($m->{'paragon'})) {
+	    my $pl = $m->{'paragon'}; #hg_para_level($monster); # para level
+	    $flags .= "P$pl";
+	    $color = ($pl == 1) ? 'yellow' : 'orange';
+	}
+	if (exists($m->{'kb'})) {
+	    $flags .= 'D';
+	    $color = 'red';
+	}
+	if (exists($m->{'type'})) {
+	    $flags .= $m->{'type_short'};
+	    $color = 'pink'; # TODO: color depending on boss-level
+	}
+	if (exists($m->{'qual'})) {
+	    $flags .= 'q'.$m->{'qual'};
+	}
+	if ($flags) {
+	    $flags = " [$flags]";
+	}
+	if (exists($m->{'race'}) && $OPTIONS{'showmonsterrace'}) {
+	    $flags = " ($m->{race_short})$flags";
+	}
+	if (exists($m->{'heals'})) {
+	    $heals = $m->{'heals'};
+	}
+    } else {
+	$flags = ' (?)';
     }
 
-    $widget -> insert('end', "$monster$flags\n", $color);
+    if ($heals) {
+	$widget -> insert('end', "$monster$flags", $color);
+	#$widget -> insert('end', " | ", 'white');
+	my ($el, $proc) = split(/ /, $heals);
+	$widget -> insert('end', " | $el $proc\n", $COLOURS{$el});
+    } else {
+	$widget -> insert('end', "$monster$flags\n", $color);
+    }
 }
 
 sub append_attack {
@@ -2563,3 +2620,62 @@ sub append_attack {
     append_monster($widget, $monster);
 }
 
+sub import_hgdata_xml {
+    # create object
+    my $xml = new XML::Simple;
+
+    # read XML file
+    my $data = $xml->XMLin("hgdata.xml");
+
+    # TODO: verify file is ok (check version, ... ?)
+
+    # access XML data
+    my $areas = $data->{areas}->{area};
+    my $areaname;
+    my $area;
+    while (($areaname, $area) = each %{$areas}) {
+
+	# monster to ignore
+	if (exists($area->{ignore})) {
+	    my $name;
+	    if (exists($area->{ignore}->{name})) {
+		$name = $area->{ignore}->{name};
+		$hg_ignore_enemies{$name} = 1;
+	    } else {
+		foreach $name (keys %{$area->{ignore}}) {
+		    $hg_ignore_enemies{$name} = 1;
+		}
+	    }
+	}
+
+	# mobs we want to know more about
+	next if !exists($area->{mob}) or $areaname eq '*';
+	my $mobs = $area->{mob};
+	my $mobname;
+	my $mob;
+	while (($mobname, $mob) = each %{$mobs}) {
+	    if (exists($hgmonsters{$mobname})) {
+		$hgmonsters{$mobname}{'area'} .= ",$areaname";
+		next;
+	    }
+	    $hgmonsters{$mobname} = $mob;
+	    $hgmonsters{$mobname}{'area'} = $areaname;
+	    if (exists($mob->{'race'})) {
+		$mob->{'race'} =~ /^(\w)(\w)\w+( (\w)\w+)?$/;
+		$mob->{'race_short'} = $1 . (defined($4) ? $4 : $2);
+	    }
+	    if (exists($mob->{'type'})) {
+		$mob->{'type'} =~ /^(\w)\w+( (\d))?$/;
+		$mob->{'type_short'} = $1;
+		$mob->{'type_short'} .= $3 if defined($3);
+	    }
+	    if (exists($mob->{'qual'}) && ($mob->{'qual'} =~ /^(\d)\.0$/)) {
+		$mob->{'qual'} = $1; # strip ".0" from end of qual if it's there
+	    }
+	    if (exists($mob->{'heals'})) {
+		my ($el, $proc) = split(/ /, $mob->{'heals'});
+		$mob->{'heal'}{$el} = $proc;
+	    }
+	}
+    }
+}
