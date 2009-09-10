@@ -294,6 +294,7 @@ my %OPTIONS = ("font" => "Times",
 	       "hellentrymessagebox" => 1,
 
 		# new options added by Separ
+		'skipunknownspells' => 1,
 		'showmonsterrace' => 0
 	       );
 
@@ -1017,6 +1018,7 @@ sub parse_log_file {
 	if (/^(.+) casts (.+)$/) {
             my $who = $1;
 	    if ($2 =~ /unknown spell/) {
+		next if $OPTIONS{'skipunknownspells'};
 		if ($OPTIONS{"otherspells"} && ($who ne $toon)){  
 		    $resists -> insert('end',$_, 'darkgray');
 		}
@@ -1823,6 +1825,10 @@ sub dialog_program_options {
 
 	$viewsetup->Checkbutton(-text => "Show spells cast by others", 
 				     -variable => \$OPTIONS{"otherspells"}
+				     ) -> pack(-anchor=>"w");
+
+	$viewsetup->Checkbutton(-text => "Skip unknown spells", 
+				     -variable => \$OPTIONS{"skipunknownspells"}
 				     ) -> pack(-anchor=>"w");
 
 	$viewsetup->Checkbutton(-text => "Show monster race", 
