@@ -42,7 +42,7 @@ use strict;
 
 import_hgdata_xml();
 
-my $version = "0.1.3b";
+my $version = "0.1.4b";
 my $kills = 0;
 my $deaths = 0;
 my $totalxp = 0;
@@ -243,6 +243,10 @@ my %PARAMONSTERS = ("Algid Reaver" => 1,
 foreach $_ (keys (%PARAMONSTERS)) {
     $PARAMONSTERS{"Superior " . $_} = 2;
     $PARAMONSTERS{"Elite " . $_} = 3;
+    if ($DONOTHIT{$_}) {
+	$DONOTHIT{"Superior $_"} = 1;
+	$DONOTHIT{"Elite $_"} = 1;
+    }
 }
 
 
@@ -2515,6 +2519,8 @@ sub hg_para_level {
 
 sub hg_do_not_hit {
     my $monster = shift;
+    # TODO: remove usage of "old" data once we get nohit-flags in xml-data
+    return 1 if exists($DONOTHIT{$monster});
     if (exists($hgmonsters{$monster})) {
 	return exists($hgmonsters{$monster}{'kb'}); # eq 'Area';
     }
@@ -2550,7 +2556,7 @@ sub append_monster {
 	    $flags .= "P$pl";
 	    $color = ($pl == 1) ? 'yellow' : 'orange';
 	}
-	if (exists($m->{'kb'})) {
+	if ($m->{'kb'} // $DONOTHIT{$monster}) {
 	    $flags .= 'D';
 	    $color = 'red';
 	}
