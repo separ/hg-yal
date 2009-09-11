@@ -592,10 +592,10 @@ sub parse_log_file {
     return if !(-e $currentlogfile);
 
     # Make sure we're parsing the active log file
-    # TODO: move info about $currentlogfile and (RUN) to top right
-    #$statusmessage = "Parsing " . $currentlogfile;
-    #$statusmessage .= "(RUN)" if (defined($saverunbuffer));
+
+    # logfile- and run-info is now top-right
     $logfile_info = $currentlogfile . (defined($saverunbuffer) ? ' (RUN)' : '');
+
     #$statusmessage .= " | Total XP: " . $totalxp . " | Total dmg: " . (defined($damage_done{$toon}) ? $damage_done{$toon} : "None yet" ) ;
     $statusmessage = "Total XP: " . $totalxp . " | Total dmg: " . (defined($damage_done{$toon}) ? $damage_done{$toon} : "None yet" ) ;
 
@@ -690,12 +690,16 @@ sub parse_log_file {
 	    
 	    my $meleehit = 0;
 	    $meleehit = 1 if ($damages =~ /\d+ Physical/); # TODO: find out if we catch bigby spells here
-	    
+
+	    # get mob healing info if attacker is a party member
+	    my $heals = exists($party{$attacker}) ? hg_mob_heals($defender) : 0;
+
 	    # Now make sure to keep information about which damage types that are actually doing damage
 	    # Stole this idea and code from Kins. Ty :)
 	    my %damage_type = ();
 	    while ($damages =~ s/(\d+) (\S+)\s*//) {
 		my ($damount, $dtype) = ($1, $2);
+		# TODO: if ($heals{$dtype}) ...
 		$damage_type{$dtype} = $damount;
 		$DamageTypesDealt{$attacker}{$dtype} = 1 if ($meleehit==1);
 #		print "Setting $attacker $dtype $DamageTypesDealt{$attacker}{$dtype}\n";		
@@ -711,13 +715,17 @@ sub parse_log_file {
 		
 		foreach (@DAMAGETYPES) {
 		    if (defined($damage_type{$_})) {
-			$damage_out -> insert('end', $damage_type{$_} . "\t", "$COLOURS{$_}");
+			if ($heals && $heals->{$_}) {
+			    $damage_out -> insert('end', $damage_type{$_}, "$COLOURS{$_}Heal");
+			    $damage_out -> insert('end', "\t", "$COLOURS{$_}");
+			} else {
+			    $damage_out -> insert('end', $damage_type{$_} . "\t", "$COLOURS{$_}");
+			}
 		    } 
 		    else {
 			$damage_out -> insert('end', "\t", "$COLOURS{$_}");
 		    }
 		}
-		#$damage_out -> insert('end', "$defender\n", "white");
 		append_monster($damage_out, $defender);
 	    }
 	    else {
@@ -730,7 +738,6 @@ sub parse_log_file {
 			$damage_inc -> insert('end', "\t", "$COLOURS{$_}");
 		    }
 		}
-		#$damage_inc -> insert('end', "$attacker\n", "white");
 		append_monster($damage_inc, $attacker);
 	    }
 	    next;
@@ -749,74 +756,8 @@ sub parse_log_file {
 	    $status = $4;
 	    $status = "crit" if $status eq "critical hit";
 	    $status = $5."%" if (defined($5));
-	    
-	    $swings{$attacker}++;
-	    $swingsagainst{$defender}++;
-	    $Swings{$attacker}{$defender}++;
-	    
-	    # Make sure to update the AB and AC estimate
-	    $AB{$attacker} = 0 if (!exists($AB{$attacker}));
-	    $AB{$attacker} = $ab if ($ab > $AB{$attacker});
-	    
-	    if ($status eq "hit" || $status eq "crit") {
-		$hits{$attacker}++;
-		$Hits{$attacker}{$defender}++;
 
-		if ($status eq "crit") {
-		    $crits{$attacker}++;
-		    $Crits{$attacker}{$defender}++;		    
-		}
-		
-		$hits++ if ($attacker eq $toon);
-		if ($roll<20) {
-		    if ((!exists($MinAC{$defender})) || ($ab+$roll < $MinAC{$defender})) {
-			$MinAC{$defender} = $ab+$roll;
-		    }
-		}
-	    }
-	    elsif ($status eq "miss" && $roll>1) {
-		$MaxAC{$defender} = 0 if (!exists($MaxAC{$defender}));
-		$MaxAC{$defender} = $ab+$roll if ($ab+$roll > $MaxAC{$defender});
-		$dodge{$defender}++;
-	    }
-	    elsif ($status =~ /(\d+)\%/) {
-		$conceal{$defender} = $1 if (!exists($conceal{$defender}));
-		$conceal{$defender} = $1 if $1 > $conceal{$defender};
-		$Conceals{$attacker}{$defender}++;
-		$dodge{$defender}++;
-		$status = "c$1%"; # for better display?
-	    }
-	    else {
-		$dodge{$defender}++;
-	    }
-	    $hits{$attacker} = 0 if (!exists($hits{$attacker}));
-	    
-	    $hitpercentage{$attacker} = sprintf("%3.2f %%", $hits{$attacker}/$swings{$attacker}*100);
-	    
-	    if ($OPTIONS{"badboy"}==1) {
-		$badtooncounter{$attacker}++ if (hg_do_not_hit($defender));
-	    }
-	    
-	    if ($toon eq $attacker) {
-		$hitfrequency = ($hitfrequencyweight*$hitfrequency)/($hitfrequencyweight + 1);
-		if ($status eq "hit" || $status eq "crit" ) {
-		    $hitfrequency += 1/($hitfrequencyweight + 1);
-		}
-		# TODO: if (hg_do_not_hit($defender)) change color from white to something else
-		#$hits_out -> insert('end', sprintf("%-3d\t:\t%-4s\t:\t%2.0f%%\t:\t%-15s\n", $ab, $status, $hitfrequency*100, $defender), 'white');
-		#$hits_out -> insert('end', sprintf("%-3d:\t%-4s:\t%2.0f%%:\t%-15s\n", $ab, $status, $hitfrequency*100, $defender), 'white');
-		append_attack($hits_out, $ab, $roll, $status, $hitfrequency*100, $defender, 'green');
-	    }
-	    elsif ($toon eq $defender) {
-		$defencefrequency = ($hitfrequencyweight*$defencefrequency)/($hitfrequencyweight + 1);
-		if ($status ne "hit" && $status ne "crit" ) {
-		    $defencefrequency += 1/($hitfrequencyweight + 1);
-		}
-		#$hits_inc -> insert('end', sprintf("%-3d : %-4s : %2.0f%% : %-15s\n", $ab, $status, 100*$defencefrequency, $attacker), 'white');
-		#$hits_inc -> insert('end', sprintf("%-3d:\t%-4s:\t%2.0f%%:\t%-15s\n", $ab, $status, 100*$defencefrequency, $attacker), 'white');
-		append_attack($hits_inc, $ab, $roll, $status, $defencefrequency*100, $attacker, 'red');
-	    }
-#	   $hitpercentage{$attacker} = 1 / $swings{attacker};
+	    process_attack($attacker, $defender, '', $roll, $ab, $status);
 	    next;
 	}
 	
@@ -825,73 +766,16 @@ sub parse_log_file {
 	#
 	# Flurry of blows still not matched !!
 	#
-       if (/(.+ \: )?(.+) attempts (Cleave|Great Cleave|Knockdown|Improved Knockdown|Disarm|Improved Disarm|Melee Touch Attack|Ranged Touch Attack|Called Shot\: Arm|Called Shot\: Leg) on (.+) : \*(hit|miss|critical hit|parried|target concealed: (\d+)%|resisted)\* : \((\d+) \+ (\d+)/) {
-	   # print $_;
-	   my ($attacker, $defender, $attacktype, $roll, $ab) = ($2, $4, $3, $7, $8);
-	   $status = $5;
-	   $status = "crit" if $status eq "critical hit";
-	   $status = $6."%" if (defined($6));
-	   
-	   $swings{$attacker}++;
-	   $swingsagainst{$defender}++;
-	   $Swings{$attacker}{$defender}++;
-	   $AB{$attacker} = 0 if (!exists($AB{$attacker}));
-	   $AB{$attacker} = $ab if ($ab > $AB{$attacker});
-	   
-	   if ($status eq "hit" || $status eq "crit") {
-	       $hits{$attacker}++;
-	       $crits{$attacker}++ if ($status eq "crit");
-	       $Hits{$attacker}{$defender}++;
-	       $Disarm{$attacker}{$defender}++ if ($attacktype eq "Improved disarm");
+	if (/(.+ \: )?(.+) attempts (Cleave|Great Cleave|Knockdown|Improved Knockdown|Disarm|Improved Disarm|Melee Touch Attack|Ranged Touch Attack|Called Shot\: Arm|Called Shot\: Leg) on (.+) : \*(hit|miss|critical hit|parried|target concealed: (\d+)%|resisted)\* : \((\d+) \+ (\d+)/) {
+	    # print $_;
+	    my ($attacker, $defender, $attacktype, $roll, $ab) = ($2, $4, $3, $7, $8);
+	    $status = $5;
+	    $status = "crit" if $status eq "critical hit";
+	    $status = $6."%" if (defined($6));
 
-	       $hits++ if ($attacker eq $toon);
-	       if ($roll<20) {
-		   $MinAC{$defender} = 200 if (!exists($MinAC{$defender}));
-		   $MinAC{$defender} = $ab+$roll if ($ab+$roll < $MinAC{$defender});	       
-	       }
-	   }
-	   elsif ($status eq "miss" && $roll>1) {
-	       $dodge{$defender}++;
-	       $MaxAC{$defender} = 0 if (!exists($MaxAC{$defender}));
-	       $MaxAC{$defender} = $ab+$roll if ($ab+$roll > $MaxAC{$defender});
-	   }
-	   elsif ($status =~ /(\d+)\%/) {
-	       $dodge{$defender}++;
-	       $conceal{$defender} = $1 if (!exists($conceal{$defender}));
-	       $conceal{$defender} = $1 if $1 > $conceal{$defender};
-	       $Conceals{$attacker}{$defender}++;
-	   }	   
-	   else {
-	       $dodge{$defender}++;
-	   }
-
-	   $hits{$attacker} = 0 if (!exists($hits{$attacker}));
-
-	   $hitpercentage{$attacker} = sprintf("%3.2f %%", $hits{$attacker}/$swings{$attacker}*100);
-
-
-	   if ($OPTIONS{"badboy"}==1) {
-	       $badtooncounter{$attacker}++ if (hg_do_not_hit($defender));
-	   }
-	   
-	   if ($toon eq $attacker) {
-	       $hitfrequency = ($hitfrequencyweight*$hitfrequency)/($hitfrequencyweight + 1);
-	       if ($status eq "hit" || $status eq "crit" ) {
-		   $hitfrequency += 1/($hitfrequencyweight + 1);
-	       }
-	       #$hits_out -> insert('end', sprintf("%-3d : %-4s : %2.0f%% : %-15s\n", $ab, $status, $hitfrequency*100, $defender));
-		append_attack($hits_out, $ab, $roll, $status, $hitfrequency*100, $defender, 'green');
-	   }
-	   elsif ($toon eq $defender) {
-	       $defencefrequency = ($hitfrequencyweight*$defencefrequency)/($hitfrequencyweight + 1);
-	       if ($status ne "hit" && $status ne "crit" ) {
-		   $defencefrequency += 1/($hitfrequencyweight + 1);
-	       }
-	       #$hits_inc -> insert('end', sprintf("%-3d : %-4s : %2.0f%% : %-15s\n", $ab, $status, 100*$defencefrequency, $attacker));	       
-		append_attack($hits_inc, $ab, $roll, $status, $defencefrequency*100, $attacker, 'red');
-	   }
-	   next;
-       }
+	    process_attack($attacker, $defender, $attacktype, $roll, $ab, $status);
+	    next;
+	}
 	   
 	   #effects
 	   #if (/^    \#(\d+) (.+) \[(.+)\]/) {
@@ -1381,6 +1265,79 @@ sub parse_log_file {
     check_log_file();
 }
 
+#
+# process attack data
+#
+sub process_attack {
+    my ($attacker, $defender, $attacktype, $roll, $ab, $status) = @_;
+
+    $swings{$attacker}++;
+    $swingsagainst{$defender}++;
+    $Swings{$attacker}{$defender}++;
+    
+    # Make sure to update the AB and AC estimate
+    $AB{$attacker} = 0 if (!exists($AB{$attacker}));
+    $AB{$attacker} = $ab if ($ab > $AB{$attacker});
+    
+    if ($status eq "hit" || $status eq "crit") {
+	$hits{$attacker}++;
+	$Hits{$attacker}{$defender}++;
+
+	if ($status eq "crit") {
+	    $crits{$attacker}++;
+	    $Crits{$attacker}{$defender}++;		    
+	}
+	
+	$hits++ if ($attacker eq $toon);
+	if ($roll<20) {
+	    if ((!exists($MinAC{$defender})) || ($ab+$roll < $MinAC{$defender})) {
+		$MinAC{$defender} = $ab+$roll;
+	    }
+	}
+
+	# special attacks
+	# TODO: this can't be all ...
+	$Disarm{$attacker}{$defender}++ if ($attacktype eq "Improved disarm");
+
+    }
+    elsif ($status eq "miss" && $roll>1) {
+	$dodge{$defender}++;
+	$MaxAC{$defender} = 0 if (!exists($MaxAC{$defender}));
+	$MaxAC{$defender} = $ab+$roll if ($ab+$roll > $MaxAC{$defender});
+    }
+    elsif ($status =~ /(\d+)\%/) {
+	$dodge{$defender}++;
+	$conceal{$defender} = $1 if (!exists($conceal{$defender}));
+	$conceal{$defender} = $1 if $1 > $conceal{$defender};
+	$Conceals{$attacker}{$defender}++;
+	$status = "c$1%"; # for better display?
+    }
+    else {
+	$dodge{$defender}++;
+    }
+
+    $hits{$attacker} = 0 if (!exists($hits{$attacker}));
+    $hitpercentage{$attacker} = sprintf("%3.2f %%", $hits{$attacker}/$swings{$attacker}*100);
+    
+    if ($OPTIONS{"badboy"}==1) {
+	$badtooncounter{$attacker}++ if (hg_do_not_hit($defender));
+    }
+    
+    if ($toon eq $attacker) {
+	$hitfrequency = ($hitfrequencyweight*$hitfrequency)/($hitfrequencyweight + 1);
+	if ($status eq "hit" || $status eq "crit" ) {
+	    $hitfrequency += 1/($hitfrequencyweight + 1);
+	}
+	append_attack($hits_out, $ab, $roll, $status, $hitfrequency*100, $defender, 'green');
+    }
+    elsif ($toon eq $defender) {
+	$defencefrequency = ($hitfrequencyweight*$defencefrequency)/($hitfrequencyweight + 1);
+	if ($status ne "hit" && $status ne "crit" ) {
+	    $defencefrequency += 1/($hitfrequencyweight + 1);
+	}
+	append_attack($hits_inc, $ab, $roll, $status, $defencefrequency*100, $attacker, 'red');
+    }
+}
 
 sub start_timer {
     my $array = $_[0];
@@ -2420,6 +2377,7 @@ sub configure_fonts {
     foreach my $colour (@COLS) {
 	$damage_out->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]);
+	$damage_out->tagConfigure($colour.'Heal', -background => "$colour", foreground => 'black');
 	$damage_inc->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]);
 	$imms->tagConfigure($colour, -foreground => "$colour",
@@ -2569,6 +2527,14 @@ sub hg_ignore_enemy {
     return exists($hg_ignore_enemies{$monster});
 }
 
+sub hg_mob_heals {
+    my $monster = shift;
+    my $type = shift;
+    return 0 if (!exists($hgmonsters{$monster}) || !exists($hgmonsters{$monster}{'heal'}));
+    my $h = $hgmonsters{$monster}{'heal'};
+    return $type ? $h->{$type} : $h;
+}
+
 sub append_monster {
     my ($widget, $monster) = @_;
 
@@ -2578,6 +2544,7 @@ sub append_monster {
 
     if (exists($hgmonsters{$monster})) {
 	my $m = $hgmonsters{$monster};
+#print "monster: $monster - ". Dumper($m);
 	if (exists($m->{'paragon'})) {
 	    my $pl = $m->{'paragon'}; #hg_para_level($monster); # para level
 	    $flags .= "P$pl";
