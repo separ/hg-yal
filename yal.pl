@@ -149,17 +149,22 @@ my %Effects = ();
 my %Effecttimers = (); #the key is the name of the effect the value is the duration of the effect
 my %MaxEffecttimers = (); #stores the values from the effects command so when you cast a spell it shows up in your effects
 
+my %DMG_TYPE_ESO = (
+	'Internal' => 1, 'Vile' => 1, 'Sacred' => 1, 'Psionic' => 1, 'Ectoplasmic' => 1
+);
 my @DAMAGETYPES = ("Physical", "Acid", "Electrical", "Fire", "Cold", "Sonic", "Magical", "Divine", "Positive", "Negative", "Internal", "Vile", "Sacred", "Psionic", "Ectoplasmic");
 my @DAMAGETYPESIMM = ("Bludgeoning", "Piercing", "Slashing", "Acid", "Electrical", "Fire", "Cold", "Sonic", "Magical", "Divine", "Positive", "Negative");
 my @COLS = ("orange", "blue", "yellow", "white", "darkgray", "pink", "green", "red", "lightblue", "purple", "maroon","magenta","LightGoldenrod","DarkSeaGreen","DarkRed");
 
 
+# added short names for damage types (for use of hgdata.xml)
 my %COLOURS = ("Physical" => "orange",
                    "Bludgeoning" => "orange",
                    "Slashing" => "orange",
                    "Piercing" => "orange",
                    "Acid" => "green",
                    "Electrical" => "blue",
+                   "Elec" => "blue", # hgdata.xml
                    "Fire" => "red",
                    "Cold" => "lightblue",
                    "Sonic" => "orange",
@@ -167,8 +172,10 @@ my %COLOURS = ("Physical" => "orange",
                    "Divine" => "yellow",
                    "Positive Energy" => "white",
                    "Positive" => "white",
+                   "Pos" => "white", # hgdata.xml
                    "Negative Energy" => "darkgray",
                    "Negative" => "darkgray",
+                   "Neg" => "darkgray", # hgdata.xml
                    "Internal" => "maroon",
                    "Vile" => "magenta",
                    "Sacred" => "LightGoldenrod",
@@ -299,7 +306,10 @@ my %OPTIONS = ("font" => "Times",
 
 		# new options added by Separ
 		'skipunknownspells' => 1,
-		'showmonsterrace' => 0
+		'showmonsterrace' => 0,
+		'showmonsterflags' => 0, # boss-type, paragon level and do-not-hit
+		'showmonsterheal' => 1, # which damage types heal a mob
+		'showesotericdmg' => 'full' # no|full|sum
 	       );
 
 
@@ -385,25 +395,16 @@ my $frm_name = $frm_info -> Frame() ->pack(-side=>'top');
 my $toon_name = $frm_info -> LabEntry(-textvariable => \$toon,
 				    -label => "Name",
 				    -labelPack => [-side => 'left']) -> pack(-side=>'left');
-my $frm_server = $frm_info -> Frame() ->pack(-side=>'top');
-my $server_name = $frm_info -> LabEntry(-textvariable => \$server,
-				    -label => "Server",
-				    -width => 3,
-				    -state => 'disabled', -disabledforeground => 'black',
-				    -labelPack => [-side => 'left']) -> pack(-side=>'left');
-my $frm_uptime = $frm_info -> Frame() ->pack(-side=>'top');
-my $uptime_text = $frm_info -> LabEntry(-textvariable => \$serveruptime,
-				    -label => "Uptime",
-				    -width => 5, # increase if we want to show seconds
-				    -state => 'disabled', -disabledforeground => 'black',
-				    -labelPack => [-side => 'left']) -> pack(-side=>'left');
 my $newlog     = $frm_info -> Button(-text => "New !", -command =>\&inc_logcount, -padx => 3, -pady => 1)->pack(-side=>"right");
 my $frm_logfile = $frm_info -> Frame() ->pack(-side=>'top');
 my $logfile_text = $frm_info -> LabEntry(-textvariable => \$logfile_info,
-				    -label => "Parsing Log",
+				    -label => "Log:",
 				    #-width => 5, # increase if we want to show seconds
 				    -state => 'disabled', -disabledforeground => 'black',
 				    -labelPack => [-side => 'left']) -> pack(-side=>'right');
+my $top_info_area = $frm_info -> Text(-width=>60, -height=>1, 
+				    -foreground=>'white', -background=>'black',
+				    -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}])->pack(-side=>"top", -fill=>"x", -expand=>0);
 
 
 ## Fugue timers
@@ -715,34 +716,10 @@ sub parse_log_file {
 	    next unless ($attacker eq $toon || $defender eq $toon);
 	    
 	    if ($toon eq $attacker) {
-		$damage_out -> insert('end', $total . "\t", 'white');	       
-		
-		foreach (@DAMAGETYPES) {
-		    if (defined($damage_type{$_})) {
-			if ($heals && $heals->{$_}) {
-			    $damage_out -> insert('end', $damage_type{$_}, "$COLOURS{$_}Heal");
-			    $damage_out -> insert('end', "\t", "$COLOURS{$_}");
-			} else {
-			    $damage_out -> insert('end', $damage_type{$_} . "\t", "$COLOURS{$_}");
-			}
-		    } 
-		    else {
-			$damage_out -> insert('end', "\t", "$COLOURS{$_}");
-		    }
-		}
-		append_monster($damage_out, $defender);
+		append_dmg_line($damage_out, $total, \%damage_type, $defender, $heals);
 	    }
 	    else {
-		$damage_inc -> insert('end', $total . "\t", 'white');
-		foreach (@DAMAGETYPES) {
-		    if (defined($damage_type{$_})) {
-			$damage_inc -> insert('end', $damage_type{$_} . "\t", "$COLOURS{$_}");
-		    }
-		    else {
-			$damage_inc -> insert('end', "\t", "$COLOURS{$_}");
-		    }
-		}
-		append_monster($damage_inc, $attacker);
+		append_dmg_line($damage_inc, $total, \%damage_type, $attacker, 0);
 	    }
 	    next;
 	}
@@ -1792,8 +1769,23 @@ sub dialog_program_options {
 				     -variable => \$OPTIONS{"skipunknownspells"}
 				     ) -> pack(-anchor=>"w");
 
-	$viewsetup->Checkbutton(-text => "Show monster race", 
+	my $combat_info_frm = $options_dialog -> Frame(-label =>"Combat Info", -relief=>'ridge', -borderwidth=>2)  -> pack(-side=>'top', -fill=>'x');
+	$combat_info_frm->Checkbutton(-text => "Show monster race", 
 				     -variable => \$OPTIONS{"showmonsterrace"}
+				     ) -> pack(-anchor=>"w");
+
+	$combat_info_frm->Checkbutton(-text => "Show monster flags", 
+				     -variable => \$OPTIONS{"showmonsterflags"}
+				     ) -> pack(-anchor=>"w");
+
+	$combat_info_frm->Checkbutton(-text => "Show monster healing info", 
+				     -variable => \$OPTIONS{"showmonsterheal"}
+				     ) -> pack(-anchor=>"w");
+
+	$combat_info_frm->BrowseEntry(-width=>4,
+				     -label => "Show esoteric damage", 
+				     -variable => \$OPTIONS{"showesotericdmg"},
+				     -choices => ['no', 'sum', 'full']
 				     ) -> pack(-anchor=>"w");
 
 	$options_dialog->Checkbutton(-text => "Capture toon name from scry and login", 
@@ -2399,6 +2391,8 @@ sub configure_fonts {
 	$resists->tagConfigure($colour,
 				  -font=>[-family=>$OPTIONS{"font-resist"}, -size=>$OPTIONS{"fontsize-resist"}]);
 	$chatlog->tagConfigure($colour, -foreground=>"$colour");
+
+	$top_info_area->tagConfigure($colour, -foreground=>"$colour");
     } 
 }
 
@@ -2503,6 +2497,34 @@ sub load_configuration {
     }
 }
 
+sub update_info_area {
+    my ($widget, $options, $def_color) = @_;
+    $widget->delete("1.0", 'end');
+    my $i = 0;
+    for my $opt (@{$options}) {
+	$widget->insert('end', " |", $def_color) if $i++;
+	if ($opt eq 'server') {
+	    $widget->insert('end', " Srv $server", $def_color);
+	    if ($uptime_secs) {
+		$widget->insert('end', ' up '.time2str("%R", $server_uptime, 0), $def_color); # TODO: change color with uptime
+	    }
+	}
+	elsif ($opt eq 'area') {
+	    $widget->insert('end', " $last_run:", $def_color) if $last_run;
+	    if ($current_map) { # TODO: && $OPTIONS{'show_area_info'}
+		$widget->insert('end', " $current_map", $def_color);
+		if ($hg_maps{$current_map}{'respawn'}) {
+		    $widget->insert('end', ' '.$hg_maps{$current_map}{'respawn'}, 'red');
+		}
+	    }
+	}
+    }
+}
+
+sub update_top_info_area {
+    update_info_area($top_info_area, ['server', 'area'], 'white');
+}
+
 #
 # some helper functions in preparation to using hgdata.xml
 #
@@ -2553,18 +2575,18 @@ sub append_monster {
 #print "monster: $monster - ". Dumper($m);
 	if (exists($m->{'paragon'})) {
 	    my $pl = $m->{'paragon'}; #hg_para_level($monster); # para level
-	    $flags .= "P$pl";
+	    $flags .= "P$pl" if $OPTIONS{'showmonsterflags'};
 	    $color = ($pl == 1) ? 'yellow' : 'orange';
 	}
 	if ($m->{'kb'} // $DONOTHIT{$monster}) {
-	    $flags .= 'D';
+	    $flags .= 'D' if $OPTIONS{'showmonsterflags'};
 	    $color = 'red';
 	}
 	if (exists($m->{'type'})) {
-	    $flags .= $m->{'type_short'};
+	    $flags .= $m->{'type_short'} if $OPTIONS{'showmonsterflags'};
 	    $color = 'pink'; # TODO: color depending on boss-level
 	}
-	if (exists($m->{'qual'})) {
+	if (exists($m->{'qual'}) && $OPTIONS{'showmonsterflags'}) {
 	    $flags .= 'q'.$m->{'qual'};
 	}
 	if ($flags) {
@@ -2573,18 +2595,18 @@ sub append_monster {
 	if (exists($m->{'race'}) && $OPTIONS{'showmonsterrace'}) {
 	    $flags = " ($m->{race_short})$flags";
 	}
-	if (exists($m->{'heals'})) {
+	if (exists($m->{'heals'}) && $OPTIONS{'showmonsterheal'}) {
 	    $heals = $m->{'heals'};
 	}
     } else {
-	$flags = ' (?)';
+	$flags = ' (?)' if $OPTIONS{'showmonsterflags'};
     }
 
     if ($heals) {
 	$widget -> insert('end', "$monster$flags", $color);
-	#$widget -> insert('end', " | ", 'white');
+	$widget -> insert('end', " H: ", 'white');
 	my ($el, $proc) = split(/ /, $heals);
-	$widget -> insert('end', " | $el $proc\n", $COLOURS{$el});
+	$widget -> insert('end', substr($el,0,1).substr($proc,0,1)."\n", $COLOURS{$el});
     } else {
 	$widget -> insert('end', "$monster$flags\n", $color);
     }
@@ -2597,6 +2619,46 @@ sub append_attack {
     #$widget -> insert('end', sprintf("%-3d:\t%-4s:\t%2.0f%%:\t%-15s\n", $ab, $status, $frequency, $monster), $color);
     $widget -> insert('end', sprintf("%3d:\t%-4s\t%2.0f%%\t", $ab, $status, $frequency), $color);
     append_monster($widget, $monster);
+}
+
+sub append_dmg_line {
+    my ($widget, $total, $damage_type, $mob, $heals) = @_;
+
+    my $eso_dmg = 0;
+    my $eso_color = '';
+    my $eso_show = $OPTIONS{'showesotericdmg'} // 0;
+    $eso_show = 0 if $eso_show eq 'no';
+
+	$widget -> insert('end', "$total\t", 'white');
+	foreach (@DAMAGETYPES) {
+	    if ($DMG_TYPE_ESO{$_}) {
+		last if !$eso_show;
+		if ($eso_show eq 'sum') {
+		    if ($damage_type->{$_}) {
+			$eso_dmg += $damage_type->{$_} // 0;
+			$eso_color = "$COLOURS{$_}";
+		    }
+		    next;
+		}
+	    }
+	    if (defined($damage_type->{$_})) {
+		if ($heals && $heals->{$_}) {
+		    $widget -> insert('end', $damage_type->{$_}, "$COLOURS{$_}Heal");
+		    $widget -> insert('end', "\t", "$COLOURS{$_}");
+		} else {
+		    $widget -> insert('end', $damage_type->{$_} . "\t", "$COLOURS{$_}");
+		}
+	    } 
+	    else {
+		$widget -> insert('end', "\t", "$COLOURS{$_}");
+	    }
+	}
+
+	if ($eso_show eq 'sum') {
+	    $widget -> insert('end', ($eso_color ? "$eso_dmg" : '')."\t", $eso_color);
+	}
+
+	append_monster($widget, $mob);
 }
 
 sub import_hgdata_xml {
