@@ -951,7 +951,7 @@ sub parse_log_file {
 	#
 	# Starting hell run
 	# 
-	if (/$toon: Send me to (Dis|Minauros|Phlegetos|Stygia|Malbolge|Maladomini|Cania|Nessus)/) {
+	if (/$toon: Send me to (Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/) {
 	    if ($OPTIONS{"hellentrymessagebox"}==1) {
 		my $clear_stats = $mw->messageBox(-message => "Clear stats?",
 						  -title => "Entering hells",
@@ -1182,7 +1182,7 @@ sub parse_srv_msg {
 			$current_area = shift @parts;
 			$name = $parts[0];
 		}
-		elsif ($#parts && ($parts[0] =~ /(Avernus|Dis|Minauros|Phlegetos|Stygia|Malbolge|Maladomini|Cania|Nessus)/)) {
+		elsif ($#parts && ($parts[0] =~ /(Avernus|Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/)) {
 			$current_area = 'Hells('.(shift @parts).')';
 			$name = $parts[0];
 		}
