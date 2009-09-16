@@ -1896,79 +1896,57 @@ sub dialog_party_summary {
     
     # We only want one copy of this window
     if (!Exists($party_summary)) {
-	my %pty = ();
+		my %pty = ();
 
-	$party_summary = $mw->Toplevel();
-	$party_summary->title("Party summary statistics");
+		$party_summary = $mw->Toplevel();
+		$party_summary->title("Party summary statistics");
 
-	# Place OK button at bottom
-	$party_summary->Button(-text => "Ok",
-			       -command => sub { $party_summary->withdraw();						 
-					     }) -> pack(-side=>'bottom');
+		my $ps_frm = $party_summary->Frame()->pack(-side=>'top');
+		my $col = 0;
+		my $row = 0;
+		for my $hname ('Toon', 'Kills', 'Last Killed', 'Deaths', 'Last Killer', 'Damage', 'Hit%', 'Holla') {
+			$ps_frm->Label(-text => $hname, -relief => 'ridge')->grid(-row => $row, -column => $col++, -sticky => 'we');
+		}
 
-	# Now generate a row frame for each party member to display the information
-        # If the verticalsummary is 1 then make it as columns instead
-	my %frm_party = ();
-	foreach my $id (sort (keys(%party))) {	    
+		# Place OK button at bottom
+		$party_summary->Button(-text => "Ok", -command => sub {
+			$party_summary->withdraw();						 
+		}) -> pack(-side=>'bottom');
 
-	    my $party_summary_main = $party_summary-> Frame(-borderwidth=>0);
+		# Now generate a row frame for each party member to display the information
+		# TODO: If the verticalsummary is 1 then make it as columns instead - lost with new party dialog
+		my %frm_party = ();
+		my $pfont = [-weight => 'normal', -family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}];
+		foreach my $id (sort (keys(%party))) {	    
 
-	    my $name = $party_summary_main -> Label(-text => substr($id, 0, 22), -foreground=>"white", -background=>"black", -width=>30, -height=>2);
+			# TODO: check if it's an active partymember or was just logged on in between
+			$col = 0;
+			$row++;
 
- 	    my $frm_party_kills = $party_summary_main ->  Frame(-relief=>'ridge', -borderwidth=>2);
-	    $frm_party_kills -> Label(-text => "Kills:", -width=>18) ->pack(-side=>'top', -fill=>'x');
-	    $frm_party_kills -> Label(-textvariable => \$kills{$id}) ->pack(-side=>'top', -fill=>'x');
-	    $frm_party_kills -> Label(-textvariable => \$partykilled{$id}) ->pack(-side=>'top', -fill=>'x');
+			$hitpercentage{$id} = 0 if (!defined($hitpercentage{$id}));
+			$badtooncounter{$id} = 0 if (!defined($badtooncounter{$id}));
 
- 	    my $frm_party_deaths = $party_summary_main ->  Frame(-relief=>'ridge', -borderwidth=>2);
-	    $frm_party_deaths -> Label(-text => "Deaths:", -width=>18) ->pack(-side=>'top', -fill=>'x');
-	    $frm_party_deaths -> Label(-textvariable => \$deaths{$id}) ->pack(-side=>'top', -fill=>'x');
-	    $frm_party_deaths -> Label(-textvariable => \$partykiller{$id}) ->pack(-side=>'top', -fill=>'x');
-
- 	    my $frm_party_damage = $party_summary_main ->  Frame(-relief=>'ridge', -borderwidth=>2);
-	    $frm_party_damage -> Label(-text => "Damage:", -width=>15) ->pack(-side=>'top', -fill=>'x');
-	    $frm_party_damage -> Label(-textvariable => \$damage_done{$id}) ->pack(-side=>'top', -fill=>'x');
-	    $frm_party_damage -> Label(-text => "") ->pack(-side=>'top', -fill=>'x') if !($OPTIONS{"verticalsummary"}==1);
-
- 	    my $frm_hit_percentage = $party_summary_main ->  Frame(-relief=>'ridge', -borderwidth=>2);
-	    $frm_hit_percentage -> Label(-text => "Hit %:", -width=>15) ->pack(-side=>'top', -fill=>'x');
-	    $hitpercentage{$id} = 0 if (!defined($hitpercentage{$id}));
-	    $frm_hit_percentage -> Label(-textvariable => \$hitpercentage{$id}) ->pack(-side=>'top', -fill=>'x');
-	    $frm_hit_percentage -> Label(-text => "") ->pack(-side=>'top', -fill=>'x')  if !($OPTIONS{"verticalsummary"}==1);
-
-	    my $frm_party_blame = $party_summary_main ->  Frame(-relief=>'ridge', -borderwidth=>2);
-	    $frm_party_blame -> Label(-text => "Holla score:") ->pack(-side=>'top', -fill=>'x', -expand=> 1);
-	    $badtooncounter{$id} = 0 if (!defined($badtooncounter{$id}));
-	    $frm_party_blame -> Label(-textvariable => \$badtooncounter{$id}) ->pack(-side=>'top', -fill=>'x');
-	    $frm_party_blame -> Label(-text => "") ->pack(-side=>'top', -fill=>'x')  if !($OPTIONS{"verticalsummary"}==1);
-
-	    
-	    # Insert names
-	    if ($OPTIONS{"verticalsummary"}==1) {
-		$party_summary_main -> pack(-side=>'left', -fill=>'both'); 
-		$name->pack(-side=>"top");
-		$frm_party_kills->pack(-side=>"top", -fill=>"x", -expand=>1);
-		$frm_party_deaths->pack(-side=>"top", -fill=>"x", -expand=>1);
-		$frm_party_damage->pack(-side=>"top", -fill=>"x", -expand=>1);
-		$frm_hit_percentage->pack(-side=>"top", -fill=>"x", -expand=>1);
-		$frm_party_blame->pack(-side=>"top", -fill=>"x", -expand=>1);
-            } 
-	    else {
-		$party_summary_main -> pack(-side=>'top', -fill=>'both'); 
-		$name -> grid(
-		    $frm_party_kills,
-		    $frm_party_deaths,
-		    $frm_party_damage,
-		    $frm_hit_percentage,
-		    $frm_party_blame,
-		    -sticky => 'w'
-		    );
-	    }	    
-	}
+			$ps_frm->Label(-text => $id, -relief => 'ridge')
+				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+			$ps_frm->Label(-textvariable => \$kills{$id}, -relief => 'ridge', -font => $pfont)
+				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+			$ps_frm->Label(-textvariable => \$partykilled{$id}, -relief => 'ridge', -font => $pfont)
+				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+			$ps_frm->Label(-textvariable => \$deaths{$id}, -relief => 'ridge', -font => $pfont)
+				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+			$ps_frm->Label(-textvariable => \$partykiller{$id}, -relief => 'ridge', -font => $pfont)
+				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+			$ps_frm->Label(-textvariable => \$damage_done{$id}, -relief => 'ridge', -font => $pfont)
+				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+			$ps_frm->Label(-textvariable => \$hitpercentage{$id}, -relief => 'ridge', -font => $pfont)
+				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+			$ps_frm->Label(-textvariable => \$badtooncounter{$id}, -relief => 'ridge', -font => $pfont)
+				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+		}
     }
     else {
-	$party_summary->deiconify();
-	$party_summary->raise();	
+		$party_summary->deiconify();
+		$party_summary->raise();	
     }
 }
 
