@@ -677,119 +677,16 @@ sub parse_log_file {
 	}
 
 	# Remove chats and stuff
-        if (/^(.+ )(.*): \[(Tell|Party|Shout)\] /) {
-	    my ($fname, $sname, $type) = ($1, $2, $3);
-	    my $speakername = $fname . $sname;
-	    # Now remove the silly space that is added to toons with no last name
-	    chop($speakername) if ($sname eq "");
-
-            if ($type eq ("Tell")) {
-                # strip the colour code for guild chats
-                s/<c.+?>//g;
-                s/<\/c.*?>//g;
-                if (/\[Guild\]/) {
-                   s/^.*\[Tell\] //;
-                    $chatlog->insert('end', $_, 'purple');
-                }
-                else {
-                    $chatlog->insert('end', $_, 'green');
-                }
-
-            }
-	    elsif ($type eq ("Shout")) {
-                $chatlog->insert('end', $_, 'yellow');		
-	    }
-            else {
-                $chatlog->insert('end', $_);
-		# Remember to code this person as a potential party member if in party talk
-		#to be taken out when list of players is defined
-		$listofplayers{$speakername} = 1 if (/\[Party\]/);
-            }
-            next;
-        }
-
+	next if parse_chat_line();
 
 	#
 	# Match on most frequent lines first and use next (instead of a lot of else if's) to speed up evaluations
 	# 
-	
-	#
-	# Damage lines first as they are most abundant
-	#
-	if (/(.+) damages (.+): (\d+) \((.+)\)/) {
-	    my ($attacker, $defender, $total, $damages) = ($1, $2, $3, $4);
 
-	    next if hg_ignore_enemy($defender); # some things (like walls, doors, ...) should be ignored
 
-	    $damage_done{$attacker} += $total;                   # sum for attacker
-	    $damage_taken{$defender} += $total;                  # sum for defender
-	    $TotalDamage{$attacker}{$defender} += $total;        # stores attacker and defender
-	    
-	    my $meleehit = 0;
-	    $meleehit = 1 if ($damages =~ /\d+ Physical/); # TODO: find out if we catch bigby spells here
+	# combat: attack and damage, xp and kills
+	next if parse_combat_line();
 
-	    # get mob healing info if attacker is a party member
-	    my $heals = exists($party{$attacker}) ? hg_mob_heals($defender) : 0;
-
-	    # Now make sure to keep information about which damage types that are actually doing damage
-	    # Stole this idea and code from Kins. Ty :)
-	    my %damage_type = ();
-	    while ($damages =~ s/(\d+) (\S+)\s*//) {
-		my ($damount, $dtype) = ($1, $2);
-		# TODO: if ($heals{$dtype}) ...
-		$damage_type{$dtype} = $damount;
-		$DamageTypesDealt{$attacker}{$dtype} = 1 if ($meleehit==1);
-#		print "Setting $attacker $dtype $DamageTypesDealt{$attacker}{$dtype}\n";		
-		$dam_taken_detail{$defender . " :d: " . $dtype} += $damount;
-	    }
-	    
-	    # General data was saved above
-            # Now we should handle the specific damage data that is shown on the GUI
-	    next unless ($attacker eq $toon || $defender eq $toon);
-	    
-	    if ($toon eq $attacker) {
-		append_dmg_line($damage_out, $total, \%damage_type, $defender, $heals);
-	    }
-	    else {
-		append_dmg_line($damage_inc, $total, \%damage_type, $attacker, 0);
-	    }
-	    next;
-	}
-	
-	
-	#
-	# Attacks
-	# Some attacks are still not matched. For example the manticore spike attacks
-	#
-	if (/(.+ \: )?(.+) attacks (.+) : \*(hit|miss|critical hit|parried|target concealed: (\d+)%)\* : \((\d+) \+ (\d+)/) {
-	    my ($attacker, $defender, $roll, $ab) = ($2, $3, $6, $7);
-
-	    next if hg_ignore_enemy($defender);
-
-	    $status = $4;
-	    $status = "crit" if $status eq "critical hit";
-	    $status = $5."%" if (defined($5));
-
-	    process_attack($attacker, $defender, '', $roll, $ab, $status);
-	    next;
-	}
-	
-	#
-	# Special attacks. Kept by themselves because they are less frequent
-	#
-	# Flurry of blows still not matched !!
-	#
-	if (/(.+ \: )?(.+) attempts (Cleave|Great Cleave|Knockdown|Improved Knockdown|Disarm|Improved Disarm|Melee Touch Attack|Ranged Touch Attack|Called Shot\: Arm|Called Shot\: Leg) on (.+) : \*(hit|miss|critical hit|parried|target concealed: (\d+)%|resisted)\* : \((\d+) \+ (\d+)/) {
-	    # print $_;
-	    my ($attacker, $defender, $attacktype, $roll, $ab) = ($2, $4, $3, $7, $8);
-	    $status = $5;
-	    $status = "crit" if $status eq "critical hit";
-	    $status = $6."%" if (defined($6));
-
-	    process_attack($attacker, $defender, $attacktype, $roll, $ab, $status);
-	    next;
-	}
-	   
 	   #effects
 	   #if (/^    \#(\d+) (.+) \[(.+)\]/) {
 	   #ills effects
@@ -807,47 +704,6 @@ sub parse_log_file {
 	   $Effecttimers{$tempename} = $tempetimer;
 	   $MaxEffecttimers{$tempename} = $tempetimer;
 	   }
-       #
-       # Kill
-       #
-       if (/^(.+) killed (.+)$/) {
-	   $kills{$1}++;
-	   $deaths{$2}++;
-	   $partykiller{$2} = $1;
-	   $partykilled{$1} = $2;
-	   $Kills{$1}{$2}++;
-
-	   # Start death timer if it was the toon that died and clear effects timers
-	   if ($2 eq $toon) {
-	       $deaths++;
-	       $lastkiller = $1;
-		   %Effecttimers = ();
-	   } 
-	   if (exists($party{$2})) {
-	       # Start a death timer if it was a party member who died
-	       push(@{$timers{300}}, $2);
-	   }
-	   else {
-	       # Check if the monster was a paragon
-	       $totalmobkills++;
-		my $pl = hg_para_level($2);
-	       $paracount{$pl}++ if ($pl);
-	   }
-       
-	   # Hmm. Still counting this separately for the player. That is not necessary. Should be integrated with the general hash
-	   if ($toon eq $1) {
-	       $kills++;
-	       $lastkilled = $2;
-	   }
-
-   	   next;
-       }    
-
-       # XP
-       if (/^Experience Points Gained:\s+(\d+)$/ ) {
-	   $totalxp += $1;
-	   next;
-       }
 
        # Different timers. Missing a lot of stuff here. Imm force for example
        # GR
@@ -1021,61 +877,9 @@ sub parse_log_file {
 	}
 
 
-       # If you use the PC Scry then set that toon as the primary
-       if (/^(.+): PCScry: Select an option$/) {
-	   if ($OPTIONS{"catchtoonname"}==1) {
-	       new_party_member($1);
-	       $toon = $1;
-	   }
-	   next;
-       }
-	# Welcome message
-	if (/Welcome to Higher Ground, (.+)!$/) {
-	    if ($OPTIONS{"catchtoonname"}==1) {
-		# clear old toon from party if re-login with another toon
-		$party{$toon} = 0 if ($toon and defined $party{$toon});
 
-		new_party_member($1);
-		$toon = $1;
-	    }
-	    next;
-	}
-	#Clears party stats
-	if (/^\[Server\] ===== Server (\d+).+$/){
-	    $parse_sub_mode = 'who';
-	    #%party = ();
-	    if ($1 eq $server) {
-		$myserverwho = 1;
-		clear_party(); # TODO: only if it's a party-who
-	    } else {
-		$myserverwho = 0;
-		$catchpartywho = 0;
-	    }
-	    next;
-	}
-	# On which server are we? - at welcome and end of !who
-	if (/You are on server (\d+)/) {
-	    $server = $1;
-	    $myserverwho = 0; # no !who output to follow immediately after
-	    $catchpartywho = 0;
-	    next;
-	}
-	# prepare server uptime display
-	if (/This server has been up for ((\d+) hours, )?(\d+) minutes,? and (\d+) seconds\./) {
-	    $uptime_secs = $4 + 60*$3 + ($2 ? 3600*$2 : 0);
-	    $uptimeat = $srv_time;
-	    next;
-	}
-
-	if (/^(.+) has (joined|left) the party\./) {
-		$listofplayers{$1} = 1;
-		if ($2 eq "joined") {
-			new_party_member($1); # TODO: make option for this catch
-		} else {
-			$party{$1} = 0;
-		}
-		next;
-	}
+	# meta-data (server, party members, ...)
+	next if parse_collect_metadata();
 
 	#ills dispelelling routine
 	#if (/^.+\*dispelled\*.+$/){
@@ -1124,21 +928,14 @@ sub parse_log_file {
 	}
 
 	# Messages regarding entering and leaving the server
-	next if (/(.+) has left as a player\.\./);
-	next if (/(.+) has joined as a player\.\./);
+	#next if (/(.+) has left as a player\.\./);
+	#next if (/(.+) has joined as a player\.\./);
+	next if (/(.+) has (joined|left) as a player\.\./);
 
-	#
-	# Specific hell comments
-	# Not sure what to use those for atm
-	# 
-	if (/^(Asmodeus stuns you with Malbolge's Strike|The malebranche's wing buffet knocks you to the ground|Asmodeus smites you with Maladomini's Ruin|Asmodeus infects you with Avernan Ague|The brood worm siphons some of your magical energies, and strikes you mute with awe|The erinyes has entangled you|The malebranche performs a whirl, catching you on its blade|The malebranche snatches you up and drops you, but you glide back to the ground|The pit fiend's wing buffet knocks you down|The pit fiend calls down a meteor swarm)!$/) {
-	    $saves -> insert('end',$_, 'yellow');
-            next;
-	}
-	if (/The Amnizu has stricken you with amnesia!/) {
-	    $saves -> insert('end',$_, 'yellow');
-	    next;
-	}
+	# area specific lines - for now only hells
+	# TODO: if ($current_area =~ /^Hells/)
+	next if parse_line_area_Hells();
+
         # Yay!
         if (/You are flooded with an incredible sense of well-being!/) {           
 	    $saves -> insert('end',$_, 'yellow');
@@ -1169,20 +966,7 @@ sub parse_log_file {
 	#
 	# Different ingame commands to control program
 	#
-	if (/$toon: \[Whisper\] \.(.+)/) {
-	    my $command = $1;
-	    if ($command eq "clear" || $command eq "reset") {
-		reset_all();
-	    }
-	    if ($command eq "pstats") {
-		dialog_party_summary();
-	    }
-	    if ($command eq "who") {
-		$catchpartywho = 1;
-	    }
-
-	    next;
-	}
+	next if parse_player_cmds();
 
 	# TODO: some more things we could catch and display in info area
 	# if (/You are in Higher Ground Enhanced Mode./)
@@ -1215,6 +999,172 @@ sub parse_log_file {
 
     # Check if it's time to change log files
     check_log_file();
+}
+
+# chat log
+sub parse_chat_line {
+	if (/^(.+ )(.*): \[(Tell|Party|Shout)\] /) {
+		my ($fname, $sname, $type) = ($1, $2, $3);
+		my $speakername = $fname . $sname;
+		# Now remove the silly space that is added to toons with no last name
+		chop($speakername) if ($sname eq "");
+
+		if ($type eq ("Tell")) {
+			# strip the colour code for guild chats
+			s/<c.+?>//g;
+			s/<\/c.*?>//g;
+			if (/\[Guild\]/) {
+			   s/^.*\[Tell\] //;
+				$chatlog->insert('end', $_, 'purple');
+			}
+			elsif (($speakername =~ /^\s*$/) && /Interserver (\w+) message from (.*) \((.*)\): (.*)/) {
+				my %channelcolors = ('newbie' => 'darkgray', 'bazaar' => 'red');
+				$chatlog->insert('end', "$2 ($3)");
+				$chatlog->insert('end', "[".ucfirst($1)."]: $4\n", $channelcolors{$1});
+			}
+			else {
+				$chatlog->insert('end', $_, 'green');
+			}
+
+		}
+		elsif ($type eq ("Shout")) {
+			if (($speakername eq 'SERVER') && /Run forming on( this)? server( \d+)?\. Contact (.*) \((.*)\) if interested: (.*)/) {
+				my ($toon, $player, $srv, $msg) = ($3, $4, $2 // '', $5);
+				$srv =~ s/^ /@/ if $srv;
+				$chatlog->insert('end', "$toon ($player)$srv");
+				$chatlog->insert('end', "[RUN]: $msg\n", 'orange');
+			} else {
+				$chatlog->insert('end', $_, 'yellow');		
+			}
+		}
+		else {
+			$chatlog->insert('end', $_);
+			# Remember to code this person as a potential party member if in party talk
+			#to be taken out when list of players is defined
+			$listofplayers{$speakername} = 1 if (/\[Party\]/);
+		}
+
+		return 1;
+	}
+
+	return 0;
+}
+
+# combat: attack and damage lines, kills and xp
+sub parse_combat_line {
+
+	# Damage lines first as they are most abundant
+	if (/(.+) damages (.+): (\d+) \((.+)\)/) {
+	    my ($attacker, $defender, $total, $damages) = ($1, $2, $3, $4);
+
+	    return 1 if hg_ignore_enemy($defender); # some things (like walls, doors, ...) should be ignored
+
+	    $damage_done{$attacker} += $total;                   # sum for attacker
+	    $damage_taken{$defender} += $total;                  # sum for defender
+	    $TotalDamage{$attacker}{$defender} += $total;        # stores attacker and defender
+	    
+	    my $meleehit = 0;
+	    $meleehit = 1 if ($damages =~ /\d+ Physical/); # TODO: find out if we catch bigby spells here
+
+	    # get mob healing info if attacker is a party member
+	    my $heals = exists($party{$attacker}) ? hg_mob_heals($defender) : 0;
+
+	    # Now make sure to keep information about which damage types that are actually doing damage
+	    # Stole this idea and code from Kins. Ty :)
+	    my %damage_type = ();
+	    while ($damages =~ s/(\d+) (\S+)\s*//) {
+			my ($damount, $dtype) = ($1, $2);
+			# TODO: if ($heals{$dtype}) ...
+			$damage_type{$dtype} = $damount;
+			$DamageTypesDealt{$attacker}{$dtype} = 1 if ($meleehit==1);
+	#		print "Setting $attacker $dtype $DamageTypesDealt{$attacker}{$dtype}\n";		
+			$dam_taken_detail{$defender . " :d: " . $dtype} += $damount;
+	    }
+	    
+	    # General data was saved above
+		# Now we should handle the specific damage data that is shown on the GUI
+	    return 1 unless ($attacker eq $toon || $defender eq $toon);
+	    
+	    if ($toon eq $attacker) {
+			append_dmg_line($damage_out, $total, \%damage_type, $defender, $heals);
+	    }
+	    else {
+			append_dmg_line($damage_inc, $total, \%damage_type, $attacker, 0);
+	    }
+	    return 1;
+	}
+	
+	# Attacks
+	# Some attacks are still not matched. For example the manticore spike attacks
+	if (/(.+ \: )?(.+) attacks (.+) : \*(hit|miss|critical hit|parried|target concealed: (\d+)%)\* : \((\d+) \+ (\d+)/) {
+		#my ($attacker, $defender, $roll, $ab) = ($2, $3, $6, $7);
+		my ($attacker, $defender, $status, $roll, $ab) = ($2, $3, $4, $6, $7);
+
+		next if hg_ignore_enemy($defender);
+
+		#$status = $4;
+		$status = "crit" if $status eq "critical hit";
+		$status = $5."%" if (defined($5));
+
+		process_attack($attacker, $defender, '', $roll, $ab, $status);
+		return 1;
+	}
+	
+	# Special attacks. Kept by themselves because they are less frequent
+	# Flurry of blows still not matched !!
+	if (/(.+ \: )?(.+) attempts (Cleave|Great Cleave|Knockdown|Improved Knockdown|Disarm|Improved Disarm|Melee Touch Attack|Ranged Touch Attack|Called Shot\: Arm|Called Shot\: Leg) on (.+) : \*(hit|miss|critical hit|parried|target concealed: (\d+)%|resisted)\* : \((\d+) \+ (\d+)/) {
+		# print $_;
+		#my ($attacker, $defender, $attacktype, $roll, $ab) = ($2, $4, $3, $7, $8);
+		#$status = $5;
+		my ($attacker, $defender, $attacktype, $status, $roll, $ab) = ($2, $4, $3, $5, $7, $8);
+		$status = "crit" if $status eq "critical hit";
+		$status = $6."%" if (defined($6));
+
+		process_attack($attacker, $defender, $attacktype, $roll, $ab, $status);
+		return 1;
+	}
+
+	# Kill
+	if (/^(.+) killed (.+)$/) {
+		$kills{$1}++;
+		$deaths{$2}++;
+		$partykiller{$2} = $1;
+		$partykilled{$1} = $2;
+		$Kills{$1}{$2}++;
+
+		# Start death timer if it was the toon that died and clear effects timers
+		if ($2 eq $toon) {
+			$deaths++;
+			$lastkiller = $1;
+			%Effecttimers = ();
+		} 
+		if (exists($party{$2})) {
+			# Start a death timer if it was a party member who died
+			push(@{$timers{300}}, $2);
+		}
+		else {
+			# Check if the monster was a paragon
+			$totalmobkills++;
+			my $pl = hg_para_level($2);
+			$paracount{$pl}++ if ($pl);
+		}
+
+		# Hmm. Still counting this separately for the player. That is not necessary. Should be integrated with the general hash
+		if ($toon eq $1) {
+			$kills++;
+			$lastkilled = $2;
+		}
+
+		return 1;
+	}    
+
+	# XP
+	if (/^Experience Points Gained:\s+(\d+)$/ ) {
+		$totalxp += $1;
+		return 1;
+	}
+
+	return 0;
 }
 
 #
@@ -1369,6 +1319,73 @@ sub parse_sm_immSpell {
 	return 1;
 }
 
+#######################################################################
+# meta-data collecting (server, party, location, ...)
+
+sub parse_collect_metadata {
+	# If you use the PC Scry then set that toon as the primary
+	if (/^(.+): PCScry: Select an option$/) {
+		if ($OPTIONS{"catchtoonname"}==1) {
+			new_party_member($1);
+			$toon = $1;
+		}
+		return 1;
+	}
+
+	# Welcome message
+	if (/Welcome to Higher Ground, (.+)!$/) {
+		if ($OPTIONS{"catchtoonname"}==1) {
+			# clear old toon from party if re-login with another toon
+			$party{$toon} = 0 if ($toon and defined $party{$toon});
+
+			new_party_member($1);
+			$toon = $1;
+		}
+		return 1;
+	}
+
+	# !who header - clears party stats
+	if (/^\[Server\] ===== Server (\d+).+$/){
+		$parse_sub_mode = 'who';
+		#%party = ();
+		if ($1 eq $server) {
+			$myserverwho = 1;
+			clear_party(); # TODO: only if it's a party-who
+		} else {
+			$myserverwho = 0;
+			$catchpartywho = 0;
+		}
+		return 1;
+	}
+
+	# On which server are we? - at welcome and end of !who
+	if (/You are on server (\d+)/) {
+	    $server = $1;
+	    $myserverwho = 0; # no !who output to follow immediately after
+	    $catchpartywho = 0;
+	    return 1;
+	}
+
+	# prepare server uptime display
+	if (/This server has been up for ((\d+) hours, )?(\d+) minutes,? and (\d+) seconds\./) {
+	    $uptime_secs = $4 + 60*$3 + ($2 ? 3600*$2 : 0);
+	    $uptimeat = $srv_time;
+	    return 1;
+	}
+
+	if (/^(.+) has (joined|left) the party\./) {
+		$listofplayers{$1} = 1;
+		if ($2 eq "joined") {
+			new_party_member($1); # TODO: make option for this catch
+		} else {
+			$party{$1} = 0;
+		}
+		return 1;
+	}
+
+	return 0;
+}
+
 # Player information from !who commands
 sub parse_sm_who {
 	return 1 if (!$myserverwho); # ignore playerlisting from other servers
@@ -1455,6 +1472,53 @@ sub parse_sm_end_gear {
 	$parse_sub_mode = '';
 }
 
+#######################################################################
+# area specific stuff - for now only hells
+#
+
+# Specific hell comments
+# Not sure what to use those for atm
+sub parse_line_area_Hells {
+	if (/^(Asmodeus stuns you with Malbolge's Strike|The malebranche's wing buffet knocks you to the ground|Asmodeus smites you with Maladomini's Ruin|Asmodeus infects you with Avernan Ague|The brood worm siphons some of your magical energies, and strikes you mute with awe|The erinyes has entangled you|The malebranche performs a whirl, catching you on its blade|The malebranche snatches you up and drops you, but you glide back to the ground|The pit fiend's wing buffet knocks you down|The pit fiend calls down a meteor swarm)!$/) {
+		$saves -> insert('end',$_, 'yellow');
+		return 1;
+	}
+	if (/The Amnizu has stricken you with amnesia!/) {
+	    $saves -> insert('end',$_, 'yellow');
+		# TODO: remember amni until rest
+	    return 1;
+	}
+	if (/^(.+) : Restore Hells Penalties/) {
+		#print "GR: by '$1' @ $server_uptime/$server_round\n";
+		# TODO: start counting rounds
+		return 1;
+	}
+
+	return 0;
+}
+
+# player commands to control YAL
+sub parse_player_cmds {
+	if (/$toon: \[Whisper\] \.(.+)/) {
+		my $command = $1;
+		if ($command eq "clear" || $command eq "reset") {
+			reset_all();
+		}
+		elsif ($command eq "pstats") {
+			dialog_party_summary();
+		}
+		elsif ($command eq "who") {
+			$catchpartywho = 1;
+		}
+
+		return 1;
+	}
+}
+
+#######################################################################
+# Processing functions
+
+#
 #
 # process attack data
 #
@@ -2154,7 +2218,7 @@ sub dialog_chat_log {
 	$chatlog = $chatlog_dialog -> Scrolled('Text', -width=>60, -height=>4, 
 					       -foreground=>'white', -background=>'black',
 					       -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}],
-					       -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'top', -fill=>'both', -expand=>1);       	
+					       -scrollbars=>'e', -wrap=>'word') -> pack(-side=>'top', -fill=>'both', -expand=>1);       	
     }
     else {
 	$chatlog_dialog->deiconify();
