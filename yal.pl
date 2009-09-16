@@ -70,6 +70,7 @@ my %damage = ();
 my $shamelessadvertising = 0;
 
 my $gearcontainer = "";
+my $next_item_rarity = '';
 my $bankchest = "default";
 my $lastentry = "";
 my $saverunbuffer;
@@ -85,10 +86,17 @@ my $server = "";
 my $srv_time = 0;
 my $myserverwho = 0;
 my $catchpartywho = 0;
-my $serveruptime = "?";
+my $server_uptime = 0;
+my $server_round = 0; # every 6 seconds a new round.
 my $uptime_secs = 0;
 my $uptimeat = 0; # at which time did we catch the uptime msg
 my $logfile_info = "?";
+my $current_area = '';
+my $current_map = '';
+my $last_run = ''; # which non-ignore area == run were we last in?
+my %hg_maps = ();
+my %hg_areas = ();
+my $parse_sub_mode = '';
 
 #
 # this is to hold the chat_dialog
@@ -628,6 +636,12 @@ sub parse_log_file {
 	if (defined($saverunbuffer)) {
 	    $saverunbuffer .= $_ ;
 	}
+
+	if (/^\s*$/) { # skip empty lines
+	    parse_sm_end() if $parse_sub_mode;
+		next;
+	}
+
 	# Remove DOS line shifts if any. Old habit
 	s/\015\012/\012/;
 	# drop the initial bit
@@ -636,14 +650,32 @@ sub parse_log_file {
 	my $time = $1 if defined $1;
 
 	# update server uptime if we did catch it once
-	if ($time) {
-	    $srv_time = str2time($time);
-	    if ($uptime_secs) {
-		$serveruptime = time2str("%R", $uptime_secs + ($srv_time - $uptimeat), 0);
+	if ($time // 0) {
+	    my $new_time = str2time($time) || 0;
+	    if ($new_time != $srv_time) {
+			# current second actually changed
+			$srv_time = $new_time;
+			#print "$time -> " . str2time($time) . ", uptimeat|\n" if ($time);
+			if ($uptime_secs) {
+				$server_uptime = $uptime_secs + ($srv_time - $uptimeat);
+				my $current_round = int $server_uptime / 6;
+				update_top_info_area();
+				if ($current_round != $server_round) {
+					# every 6 seconds we have a new round
+					#printf "new round: %d -> %d @ %d - %s\n", $server_round, $current_round, $server_uptime, time2str("%R", $server_uptime, 0);
+					$server_round = $current_round;
+				}
+			}
 	    }
+
+	    # if we got a timestamp all parsing submodes are finished
+	    parse_sm_end(); # $parse_sub_mode = '';
+	}
+	elsif (/^  / && $parse_sub_mode) {
+		# data to collect from an info command if starting with '  ' (2 blanks)
+		next if parse_log_submode();
 	}
 
-	
 	# Remove chats and stuff
         if (/^(.+ )(.*): \[(Tell|Party|Shout)\] /) {
 	    my ($fname, $sname, $type) = ($1, $2, $3);
@@ -962,6 +994,11 @@ sub parse_log_file {
 	#    next;
 	#}	
 
+	# more output from !list imm
+	if (/^(Spell|Other) immunities:$/) {
+		$parse_sub_mode = "imm$1";
+	}
+
 	#
         # Various lines that cannot really be used for anything as you cnnot see who causes them
         #
@@ -982,17 +1019,8 @@ sub parse_log_file {
 		%Effecttimers = ();
 	    next;
 	}
-       
-       # Immunities
-       # List immunities read from !list imm . Still some trouble with formatting
-       
-       if (/^    (Bludgeoning|Piercing|Slashing|Magical|Acid|Cold|Divine|Electrical|Fire|Negative|Positive|Sonic): \.+(\d+)%(\.+(\d+)\/-\.+)?/){
-	   $immunities{$1} = $2;
-	   $resists{$1} = $4;
-	   print_immunities();
-	   next;
-       }
-       
+
+
        # If you use the PC Scry then set that toon as the primary
        if (/^(.+): PCScry: Select an option$/) {
 	   if ($OPTIONS{"catchtoonname"}==1) {
@@ -1014,6 +1042,7 @@ sub parse_log_file {
 	}
 	#Clears party stats
 	if (/^\[Server\] ===== Server (\d+).+$/){
+	    $parse_sub_mode = 'who';
 	    #%party = ();
 	    if ($1 eq $server) {
 		$myserverwho = 1;
@@ -1035,54 +1064,18 @@ sub parse_log_file {
 	if (/This server has been up for ((\d+) hours, )?(\d+) minutes,? and (\d+) seconds\./) {
 	    $uptime_secs = $4 + 60*$3 + ($2 ? 3600*$2 : 0);
 	    $uptimeat = $srv_time;
-	    #$serveruptime = sprintf("%02d:%02d", $2, $3); # display seconds?
-	    $serveruptime = time2str("%R", $uptime_secs, 0);
 	    next;
 	}
-	# Player information from !who commands
-	# old if (/^  \s*\[\d+(\/\d+)?\]( \|.+\|)? (.+) $/) {
-	#ills version
-	if (/^.+\[(\d+ \D\D\D.+?)\] (.+) $/){    
 
-	    next if (!$myserverwho); # ignore playerlisting from other servers
-
-		#print "!who output: $_" if (1);
-		#print "!who output: $_" if ($debug);
-	    chomp;
-	    # Remove DM tag
-		if ($debug) {print "$_ in who output ";}
-	    my $toonname = $2;
-	    $toonname =~ s/ \[DM PC\]//;
-	    # Remove guild tag
-	    #removed, done with regex
-		#$toonname =~ s/ <.+>//;
-
-	    # Now this is a bit trickly and certanly not a perfect solution
-	    # Remove things in end parentheses as they most likely are because of an area eg., !who 113 area.
-	    # Some people use it to ID theis login through so lets see ....
-		#due to the new maching routine, this next line no matter is required.
-	    #$toonname =~ s/ \(.{8,30}\)//;
-	    
-	    $listofplayers{$toonname} = 0 if (!defined($listofplayers{$toonname}));
-	    #$party{$toonname} = 1;
-	    new_party_member($toonname) if ($catchpartywho);
-		if ($debug) {print "$listofplayers{$toonname} \n";}
-		
-#	    print "Found $toonname in this line:>>>$_<<<\n";
-	    next;
-	}
-	
-	
 	if (/^(.+) has (joined|left) the party\./) {
-	    $listofplayers{$1} = 1;
-	    if ($2 eq "joined") {
-		new_party_member($1); # TODO: make option for this catch
-	    } else {
-		$party{$1} = 0;
-	    }
-	    next;
+		$listofplayers{$1} = 1;
+		if ($2 eq "joined") {
+			new_party_member($1); # TODO: make option for this catch
+		} else {
+			$party{$1} = 0;
+		}
+		next;
 	}
-	
 
 	#ills dispelelling routine
 	#if (/^.+\*dispelled\*.+$/){
@@ -1117,37 +1110,8 @@ sub parse_log_file {
 	    next;
 	}
 
-	
-	# From uses of !list contents on a container
-
-
-	# Loot lines and rarity
-	if (/(.+): (Non-random|Beyond Ultrarare|Ultrarare|Rare) items:/) {
-	    $gearcontainer = $1;
-	    # Now clear the existing data if that exists
-	    $Gear{$gearcontainer} = () if (exists($Gear{$gearcontainer}));
-	    next;	    
-	}
-	if (/\[Server\] Contents of Persistent (Transfer|Storage) Chest:/) {
-	    $gearcontainer = "Bankchest $bankchest";
-	    # Now clear the existing data if that exists
-	    $Gear{$gearcontainer} = () if (exists($Gear{$gearcontainer}));
-	    next;
-	}
-	if (/^    ([A-Za-z].+)/) {
-	    if ($gearcontainer ne "") {
-		$Gear{$gearcontainer}{$1}++;
-	    }	    
-	    next;
-	}
-	if (/You are now using bank chest '(.+?)'/) {
-	    $bankchest = $1;
-	    next;
-	}
-	if (/You are now using your default bank chest/) {
-	    $bankchest = "default";
-	    next;
-	}
+	# check if a list of gear follows
+	next if parse_gear_list_header();
 
 	# Loot split rolls for whiners. Not sure what I will do with it yet
 	if (/(.+) rolled a \[D(4|6|8|10|12|20|100)\] and got a: \[(\d+)\]\./) {
@@ -1219,7 +1183,14 @@ sub parse_log_file {
 
 	    next;
 	}
-	
+
+	# TODO: some more things we could catch and display in info area
+	# if (/You are in Higher Ground Enhanced Mode./)
+	# if (/Latest Module Build: 2009-07-27/)
+	if ($time && s/^\[Server\] //) {
+	    parse_srv_msg($_);
+	    next;
+	}
 
 
 	print "Line not parsed : $_" if ($debug ne 0);
@@ -1244,6 +1215,244 @@ sub parse_log_file {
 
     # Check if it's time to change log files
     check_log_file();
+}
+
+#
+# parse server msgs
+# returns 1 if we had a match, otherwise 0
+#
+sub parse_srv_msg {
+    chomp; # remove \n at end ... TODO: why was this not done earlier?
+
+    # where are we?
+    if (/^You are now in (.*) \((.*)\)\.$/) {
+		my ($name, $pvp) = ($1, $2);
+		my @parts = split(/ - /, $name);
+		if ($#parts && exists($hg_areas{$parts[0]})) { # areaname is in map-name
+			$current_area = shift @parts;
+			$name = $parts[0];
+		}
+		elsif ($#parts && ($parts[0] =~ /(Avernus|Dis|Minauros|Phlegetos|Stygia|Malbolge|Maladomini|Cania|Nessus)/)) {
+			$current_area = 'Hells('.(shift @parts).')';
+			$name = $parts[0];
+		}
+		elsif (exists($hg_maps{$name})) {
+			$current_area = $hg_maps{$name}{'area'} // ''; # default: no area
+		}
+		else {
+			$current_area = '';
+		}
+		$current_map = $name;
+
+		# which run are we doing?
+		$last_run = $current_area if $current_area;
+
+		# remember pvp-status of map
+		$hg_maps{$current_map}{'pvp'} = $pvp;
+    }
+
+    # area status: fugue/limbo/... ?
+    elsif (/^You will (.*) if you respawn in this area\.$/) {
+		if ($current_map) {
+			$hg_maps{$current_map}{'respawn'} = $1;
+		}
+    }
+
+    # update demi count
+    #elsif (/^The last spawn in this area was affected by (\d+) demi iterations\.$/) {
+    #}
+
+    # switch mode to collecting immunities
+    elsif (/^Damage immunities:$/) {
+		$parse_sub_mode = 'imm';
+    }
+
+    # !iteminfo
+    #elsif (/^Properties of (.+):$/) {
+    #}
+
+    # !itemlevel
+    #elsif (/^Requirements for (.+):$/) {
+    #}
+
+    # !list inventory
+    #elsif (/^Your inventory:$/) {
+    #}
+
+    # get LBAB and CC
+    #elsif (/^Legendary BAB: +(\d+) \(LWF \/ Control Class: ([\w ]+)\)$/) {
+    #}
+
+    # list of done quests
+    #elsif (/^You have the following accomplishments:$/) {
+	#$parse_sub_mode = 'acc'
+    #}
+
+    # !list ac
+    #elsif (/^Armor class:/) {
+    #}
+
+    # !list saves
+    #elsif (/^Saving throws:/) {
+    #}
+
+	else {
+		return 0;
+	}
+
+	return 1;
+}
+
+#
+# sub-mode parsing, collect data after a recognized header
+# data-lines start with at least 2 blanks
+#
+sub parse_log_submode {
+	if ($parse_sub_mode) {
+		#print "submode parsing: $parse_sub_mode\n";
+		my $fn = "parse_sm_$parse_sub_mode";
+		# print "sub func found: $fn\n" if (defined(&$fn));
+		goto &$fn if (defined(&$fn));
+	}
+	return 0;
+}
+
+# end of data for a sub-mode parser
+sub parse_sm_end {
+	if ($parse_sub_mode) {
+		#print "submode end: $parse_sub_mode\n";
+		my $fn = "parse_sm_end_$parse_sub_mode";
+		goto &$fn if (defined(&$fn));
+		$parse_sub_mode = '';
+	}
+}
+
+#
+# Immunities
+# List immunities read from !list imm . Still some trouble with formatting
+#
+
+# collect data for "Damage immunities"
+sub parse_sm_imm {
+	#printf "in parse_sm_imm\(\)\n";
+	#if (/^    (Bludgeoning|Piercing|Slashing|Magical|Acid|Cold|Divine|Electrical|Fire|Negative|Positive|Sonic): \.+(\d+)%(\.+(\d+)\/-\.+)?/)
+	if (/^    (\w+): \.+(-?\d+)%(\.+(\d+)\/-\.+)?/) {
+		#print "imm found: '$1'/'$2'/'".($4 // '?')."'\n";
+		$immunities{$1} = $2;
+		$resists{$1} = $4 // '';
+		print_immunities(); # TODO: only once when we have all of them
+	}
+	return 1;
+}
+
+# collect data for "Other immunities"
+sub parse_sm_immOther {
+	if (/^    ([\w ,]+)/) {
+		my @ilist = split(/, /, $1);
+		$ilist[$#ilist] =~ s/^and // if ($#ilist);
+		# TODO: save imms for display
+		print "other imms: ". join(',', @ilist)."\n";
+	}
+	return 1;
+}
+
+# collect data for "Spell immunities"
+sub parse_sm_immSpell {
+	if (/^    Spells of level (\d) and lower/) {
+		print "Spell immunity by level: $1\n";
+	}
+	elsif (/^    ([\w ,]+)/) {
+		my @ilist = split(/, /, $1);
+		$ilist[$#ilist] =~ s/^and // if ($#ilist);
+		# TODO: save imms for display
+	}
+	return 1;
+}
+
+# Player information from !who commands
+sub parse_sm_who {
+	return 1 if (!$myserverwho); # ignore playerlisting from other servers
+	# old if (/^  \s*\[\d+(\/\d+)?\]( \|.+\|)? (.+) $/) {
+	#ills version: if (/^.+\[(\d+ \D\D\D.+?)\] (.+) $/){    
+	if (/^.+\[(\d+ \D\D\D.+?)\] (.+) $/) {
+		#print "!who output: $_" if (1);
+		#print "!who output: $_" if ($debug);
+	    chomp;
+	    # Remove DM tag
+		if ($debug) {print "$_ in who output ";}
+	    my $toonname = $2;
+	    $toonname =~ s/ \[DM PC\]//;
+	    # Remove guild tag
+	    #removed, done with regex
+		#$toonname =~ s/ <.+>//;
+
+	    # Now this is a bit trickly and certanly not a perfect solution
+	    # Remove things in end parentheses as they most likely are because of an area eg., !who 113 area.
+	    # Some people use it to ID theis login through so lets see ....
+		#due to the new maching routine, this next line no matter is required.
+	    #$toonname =~ s/ \(.{8,30}\)//;
+	    
+	    $listofplayers{$toonname} = 0 if (!defined($listofplayers{$toonname}));
+	    #$party{$toonname} = 1;
+	    new_party_member($toonname) if ($catchpartywho);
+		if ($debug) {print "$listofplayers{$toonname} \n";}
+		
+#	    print "Found $toonname in this line:>>>$_<<<\n";
+	}
+	return 1;
+}
+
+#######################################################################
+# collect gear listings
+sub parse_gear_list_header {
+	# From uses of !list contents on a container
+
+	# Loot lines and rarity - skip "Common" and "Uncommon" stuff
+	if (/(.+): (Non-random|Beyond Ultrarare|Ultrarare|Rare) items:/) {
+		# TODO: if ($toon eq $q) ...
+	    $gearcontainer = $1;
+		#if ($parse_sub_mode ne 'gear') {
+	print "reset gearcontainer $gearcontainer\n" if (exists($Gear{$gearcontainer}) && !$next_item_rarity);
+			# Now clear the existing data if that exists
+			$Gear{$gearcontainer} = () if (exists($Gear{$gearcontainer}) && !$next_item_rarity);
+			$parse_sub_mode = 'gear';
+		#}
+		$next_item_rarity = $2; # TODO: use that data
+	}
+	elsif (/\[Server\] Contents of Persistent (Transfer|Storage) Chest:/) {
+	    $gearcontainer = "Bankchest $bankchest";
+		$parse_sub_mode = 'gear';
+	    # Now clear the existing data if that exists
+	    $Gear{$gearcontainer} = () if (exists($Gear{$gearcontainer}));
+		$next_item_rarity = ''; # unknown rarity
+	}
+	elsif (/You are now using bank chest '(.+?)'/) {
+	    $bankchest = $1;
+	}
+	elsif (/You are now using your default bank chest/) {
+	    $bankchest = "default";
+	}
+	else {
+		return 0;
+	}
+
+	return 1;
+}
+
+# collect gear data from "!list inventory" or "!list contents"
+sub parse_sm_gear {
+	if (/^    ([A-Za-z].+)/) {
+	    if ($gearcontainer ne "") {
+			$Gear{$gearcontainer}{$1}++;
+	    }
+		# TODO: if ($next_item_rarity) ...
+	    return 1;
+	}
+}
+
+sub parse_sm_end_gear {
+	return if ($next_item_rarity && /^\s*$/); # items of other rarity may follow
+	$parse_sub_mode = '';
 }
 
 #
@@ -2676,6 +2885,19 @@ sub import_hgdata_xml {
     my $area;
     while (($areaname, $area) = each %{$areas}) {
 
+	$hg_areas{$areaname} = {};
+	if (exists($area->{'map'})) {
+	    #my $maps = $area->{'map'};
+	    #printf "found maps in $areaname\n";
+	    my $name;
+	    foreach $name (keys %{$area->{'map'}}) {
+		my @parts = split(/ - /, $name);
+		shift @parts if $areaname eq $parts[0];
+		#printf "\t$areaname | ".join(' - ', @parts)."\n";
+		$hg_maps{join(' - ', @parts)}{'area'} = $areaname;
+	    }
+	}
+
 	# monster to ignore
 	if (exists($area->{ignore})) {
 	    my $name;
@@ -2718,5 +2940,10 @@ sub import_hgdata_xml {
 		$mob->{'heal'}{$el} = $proc;
 	    }
 	}
+    }
+
+    my $ignore_maps = $data->{ignoremaps}{'map'};
+    while (($areaname, $area) = each %{$ignore_maps}) {
+	$hg_maps{$areaname}{'area'} = '';
     }
 }
