@@ -40,8 +40,6 @@ use subs qw/beep/;
 use warnings;
 use strict;
 
-import_hgdata_xml();
-
 my $version = "0.1.4b";
 my $kills = 0;
 my $deaths = 0;
@@ -580,6 +578,7 @@ my $rpeffectstimers = $mw->repeat(1000 => \&update_effects_timers);
 load_configuration();
 dialog_chat_log();   # Setup the chat log 
 configure_fonts();   
+import_hgdata_xml(); # import hgdata.xml
 print_immunities();
 
 
@@ -1100,7 +1099,7 @@ sub parse_combat_line {
 		#my ($attacker, $defender, $roll, $ab) = ($2, $3, $6, $7);
 		my ($attacker, $defender, $status, $roll, $ab) = ($2, $3, $4, $6, $7);
 
-		next if hg_ignore_enemy($defender);
+		return 1 if hg_ignore_enemy($defender);
 
 		#$status = $4;
 		$status = "crit" if $status eq "critical hit";
