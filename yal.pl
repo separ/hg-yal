@@ -1349,7 +1349,7 @@ sub parse_collect_metadata {
 		#%party = ();
 		if ($1 eq $server) {
 			$myserverwho = 1;
-			clear_party(); # TODO: only if it's a party-who
+			clear_party() if $catchpartywho; # only if it's a party-who
 		} else {
 			$myserverwho = 0;
 			$catchpartywho = 0;
