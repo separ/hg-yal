@@ -406,7 +406,7 @@ my $frm_name = $frm_info -> Frame() ->pack(-side=>'top');
 my $toon_name = $frm_info -> LabEntry(-textvariable => \$toon,
 				    -label => "Name",
 				    -labelPack => [-side => 'left']) -> pack(-side=>'left');
-my $newlog     = $frm_info -> Button(-text => "New !", -command =>\&inc_logcount, -padx => 3, -pady => 1)->pack(-side=>"right");
+my $newlog     = $frm_info -> Button(-text => "Next", -command =>\&inc_logcount, -padx => 3, -pady => 1)->pack(-side=>"right");
 my $frm_logfile = $frm_info -> Frame() ->pack(-side=>'top');
 my $logfile_text = $frm_info -> LabEntry(-textvariable => \$logfile_info,
 				    -label => "Log:",
@@ -1011,51 +1011,51 @@ sub parse_log_file {
 
 # chat log
 sub parse_chat_line {
-	if (/^(.+ )(.*): \[(Tell|Party|Shout)\] /) {
-		my ($fname, $sname, $type) = ($1, $2, $3);
-		my $speakername = $fname . $sname;
-		# Now remove the silly space that is added to toons with no last name
-		chop($speakername) if ($sname eq "");
+    if (/^(.+ )(.*): \[(Tell|Party|Shout)\] /) {
+	my ($fname, $sname, $type) = ($1, $2, $3);
+	my $speakername = $fname . $sname;
+	# Now remove the silly space that is added to toons with no last name
+	chop($speakername) if ($sname eq "");
 
-		if ($type eq ("Tell")) {
-			# strip the colour code for guild chats
-			s/<c.+?>//g;
-			s/<\/c.*?>//g;
-			if (/\[Guild\]/) {
-			   s/^.*\[Tell\] //;
-				$chatlog->insert('end', $_, 'purple');
-			}
-			elsif (($speakername =~ /^\s*$/) && /Interserver (\w+) message from (.*) \((.*)\): (.*)/) {
-				my %channelcolors = ('newbie' => 'darkgray', 'bazaar' => 'red');
-				$chatlog->insert('end', "$2 ($3)");
-				$chatlog->insert('end', "[".ucfirst($1)."]: $4\n", $channelcolors{$1});
-			}
-			else {
-				$chatlog->insert('end', $_, 'green');
-			}
+	if ($type eq ("Tell")) {
+	    # strip the colour code for guild chats
+	    s/<c.+?>//g;
+	    s/<\/c.*?>//g;
+	    if (/\[Guild\]/) {
+		s/^.*\[Tell\] //;
+		$chatlog->insert('end', $_, 'purple');
+	    }
+	    elsif (($speakername =~ /^\s*$/) && /Interserver (\w+) message from (.*) \((.*)\): (.*)/) {
+		my %channelcolors = ('newbie' => 'darkgray', 'bazaar' => 'red');
+		$chatlog->insert('end', "$2 ($3)");
+		$chatlog->insert('end', "[".ucfirst($1)."]: $4\n", $channelcolors{$1});
+	    }
+	    else {
+		$chatlog->insert('end', $_, 'green');
+	    }
 
-		}
-		elsif ($type eq ("Shout")) {
-			if (($speakername eq 'SERVER') && /Run forming on( this)? server( \d+)?\. Contact (.*) \((.*)\) if interested: (.*)/) {
-				my ($toon, $player, $srv, $msg) = ($3, $4, $2 // '', $5);
-				$srv =~ s/^ /@/ if $srv;
-				$chatlog->insert('end', "$toon ($player)$srv");
-				$chatlog->insert('end', "[RUN]: $msg\n", 'orange');
-			} else {
-				$chatlog->insert('end', $_, 'yellow');		
-			}
-		}
-		else {
-			$chatlog->insert('end', $_);
-			# Remember to code this person as a potential party member if in party talk
-			#to be taken out when list of players is defined
-			$listofplayers{$speakername} = 1 if (/\[Party\]/);
-		}
-
-		return 1;
 	}
+	elsif ($type eq ("Shout")) {
+	    if (($speakername eq 'SERVER') && /Run forming on( this)? server( \d+)?\. Contact (.*) \((.*)\) if interested: (.*)/) {
+		my ($toon, $player, $srv, $msg) = ($3, $4, $2 // '', $5);
+		$srv =~ s/^ /@/ if $srv;
+		$chatlog->insert('end', "$toon ($player)$srv");
+		$chatlog->insert('end', "[RUN]: $msg\n", 'orange');
+	    } else {
+		$chatlog->insert('end', $_, 'yellow');		
+	    }
+	}
+	else {
+	    $chatlog->insert('end', $_);
+	    # Remember to code this person as a potential party member if in party talk
+	    #to be taken out when list of players is defined
+	    $listofplayers{$speakername} = 1 if (/\[Party\]/);
+	}
+	$chatlog->see('end');
+	return 1;
+    }
 
-	return 0;
+    return 0;
 }
 
 # combat: attack and damage lines, kills and xp
@@ -1184,36 +1184,35 @@ sub parse_srv_msg {
 
     # where are we?
     if (/^You are now in (.*) \((.*)\)\.$/) {
-		my ($name, $pvp) = ($1, $2);
-		my @parts = split(/ - /, $name);
-		if ($#parts && exists($hg_areas{$parts[0]})) { # areaname is in map-name
-			$current_area = shift @parts;
-			$name = $parts[0];
-		}
-		elsif ($#parts && ($parts[0] =~ /(Avernus|Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/)) {
-			$current_area = 'Hells('.(shift @parts).')';
-			$name = $parts[0];
-		}
-		elsif (exists($hg_maps{$name})) {
-			$current_area = $hg_maps{$name}{'area'} // ''; # default: no area
-		}
-		else {
-			$current_area = '';
-		}
-		$current_map = $name;
+	my ($name, $pvp) = ($1, $2);
+	my @parts = split(/ - /, $name);
+	if ($#parts && exists($hg_areas{$parts[0]})) { # areaname is in map-name
+	    $current_area = shift @parts;
+	    $name = $parts[0];
+	}
+	elsif ($#parts && ($parts[0] =~ /(Avernus|Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/)) {
+	    $current_area = 'Hells('.(shift @parts).')';
+	    $name = $parts[0];
+	}
+	elsif (exists($hg_maps{$name})) {
+	    $current_area = $hg_maps{$name}{'area'} // ''; # default: no area
+	}
+	else {
+	    $current_area = '';
+	}
+	$current_map = $name;
 
-		# which run are we doing?
-		$last_run = $current_area if $current_area;
-
-		# remember pvp-status of map
-		$hg_maps{$current_map}{'pvp'} = $pvp;
+	# which run are we doing?
+	$last_run = $current_area if $current_area;
+	# remember pvp-status of map
+	$hg_maps{$current_map}{'pvp'} = $pvp;
     }
 
     # area status: fugue/limbo/... ?
     elsif (/^You will (.*) if you respawn in this area\.$/) {
-		if ($current_map) {
-			$hg_maps{$current_map}{'respawn'} = $1;
-		}
+	if ($current_map) {
+	    $hg_maps{$current_map}{'respawn'} = $1;
+	}
     }
 
     # update demi count
@@ -1222,7 +1221,7 @@ sub parse_srv_msg {
 
     # switch mode to collecting immunities
     elsif (/^Damage immunities:$/) {
-		$parse_sub_mode = 'imm';
+	$parse_sub_mode = 'imm';
     }
 
     # !iteminfo
@@ -1254,11 +1253,11 @@ sub parse_srv_msg {
     #elsif (/^Saving throws:/) {
     #}
 
-	else {
-		return 0;
-	}
+    else {
+	return 0;
+    }
 
-	return 1;
+    return 1;
 }
 
 #
@@ -2806,7 +2805,7 @@ sub update_info_area {
 }
 
 sub update_top_info_area {
-    update_info_area($top_info_area, ['server', 'area'], 'white');
+    update_info_area($top_info_area, ['server', 'area'], '');
 }
 
 #
@@ -2967,9 +2966,12 @@ sub import_hgdata_xml {
 	    my $name;
 	    foreach $name (keys %{$area->{'map'}}) {
 		my @parts = split(/ - /, $name);
-		shift @parts if $areaname eq $parts[0];
-		#printf "\t$areaname | ".join(' - ', @parts)."\n";
-		$hg_maps{join(' - ', @parts)}{'area'} = $areaname;
+		if ($areaname eq $parts[0]) {
+		    shift @parts;
+		    $name = $parts[0];
+		}
+		$hg_maps{$name}{'area'} = $areaname;
+		#printf "\t$areaname | $name\n";
 	    }
 	}
 
