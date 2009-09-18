@@ -35,7 +35,9 @@ use Tk::ItemStyle;
 use Date::Format;
 use Date::Parse;
 
-use XML::Simple;
+use XML::Simple; # TODO: remove and use regexp to parse hgdata.xml
+use File::Copy; # for copying the runfile on run-end
+
 use subs qw/beep/;
 use warnings;
 use strict;
@@ -95,6 +97,8 @@ my $last_run = ''; # which non-ignore area == run were we last in?
 my %hg_maps = ();
 my %hg_areas = ();
 my $parse_sub_mode = '';
+my $current_save_file = ''; # name of file we're saving the current run to
+my $log_first_time = 0; # first timestamp we've seen in the log
 
 #
 # this is to hold the chat_dialog
@@ -315,7 +319,8 @@ my %OPTIONS = ("font" => "Times",
 		'showmonsterrace' => 0,
 		'showmonsterflags' => 0, # boss-type, paragon level and do-not-hit
 		'showmonsterheal' => 1, # which damage types heal a mob
-		'showesotericdmg' => 'full' # no|full|sum
+		'showesotericdmg' => 'full', # no|full|sum
+		'autostartrun' => 0 # if set automically log run to currentrun.txt
 	       );
 
 
@@ -384,9 +389,9 @@ my $menu_file = $frm_menu -> Menubutton(-text=>'File',
 							-command => \&html_summary],
 						       [Separator => ''],
 							['command' => "~Start a run",
-							 -command => \&start_run],
+							 -command => \&runlog_start],
 						       ['command' => "E~nd run",
-							 -command => \&end_run,
+							 -command => \&runlog_end,
 							 -state => 'disabled'],
 						       ['command' => "~Parse old log file", 
 							-command => \&parse_old_log_file],
@@ -580,6 +585,9 @@ dialog_chat_log();   # Setup the chat log
 configure_fonts();   
 import_hgdata_xml(); # import hgdata.xml
 print_immunities();
+if ($OPTIONS{'autostartrun'}) {
+    runlog_start('currentrun.txt');
+}
 
 
 open(LOGFILE, "$currentlogfile");
@@ -651,20 +659,21 @@ sub parse_log_file {
 	# update server uptime if we did catch it once
 	if ($time // 0) {
 	    my $new_time = str2time($time) || 0;
+	    $log_first_time = $new_time if !$log_first_time; # remember first parsed timestamp
 	    if ($new_time != $srv_time) {
-			# current second actually changed
-			$srv_time = $new_time;
-			#print "$time -> " . str2time($time) . ", uptimeat|\n" if ($time);
-			if ($uptime_secs) {
-				$server_uptime = $uptime_secs + ($srv_time - $uptimeat);
-				my $current_round = int $server_uptime / 6;
-				update_top_info_area();
-				if ($current_round != $server_round) {
-					# every 6 seconds we have a new round
-					#printf "new round: %d -> %d @ %d - %s\n", $server_round, $current_round, $server_uptime, time2str("%R", $server_uptime, 0);
-					$server_round = $current_round;
-				}
-			}
+		# current second actually changed
+		$srv_time = $new_time;
+		#print "$time -> " . str2time($time) . ", uptimeat|\n" if ($time);
+		if ($uptime_secs) {
+		    $server_uptime = $uptime_secs + ($srv_time - $uptimeat);
+		    my $current_round = int $server_uptime / 6;
+		    update_top_info_area();
+		    if ($current_round != $server_round) {
+			# every 6 seconds we have a new round
+			#printf "new round: %d -> %d @ %d - %s\n", $server_round, $current_round, $server_uptime, time2str("%R", $server_uptime, 0);
+			$server_round = $current_round;
+		    }
+		}
 	    }
 
 	    # if we got a timestamp all parsing submodes are finished
@@ -2063,6 +2072,10 @@ sub dialog_program_options {
 	#
 #	my $hollasetup = $options_dialog -> Frame(-label =>"Blame'O'Meter", -relief=>'ridge', -borderwidth=>2)  -> pack(-side=>'top', -fill=>'x');
 #	$hollasetup->Checkbutton(-text=>'Record Holla score', -variable=>\$OPTIONS{"badboy"})->pack();
+
+	$options_dialog->Checkbutton(-text => "Automatically start a run", 
+				     -variable => \$OPTIONS{"autostartrun"}
+				     ) -> pack(-anchor=>"w");
 	
     }
     else {
@@ -2545,14 +2558,15 @@ sub save_inventories {
 
 
 
-sub start_run {
-    my $file = $mw->getSaveFile(-initialfile=> 'lastrun.txt',
+sub runlog_start {
+    my $fname = shift;
+    $current_save_file = $fname // $mw->getSaveFile(-initialfile=> 'lastrun.txt',
 				-filetypes=>[['Text files', '.txt'],
 					     ['All Files', '*']],
 				-defaultextension => '.txt');
     
-    if (defined($file)) {
-	open(SAVEFILE, ">$file");
+    if (defined($current_save_file)) {
+	open(SAVEFILE, ">$current_save_file");
 
 	# Change the menubuttons so start run is disabled
 	$menu_file->entryconfigure('End run', -state=>'normal');
@@ -2561,21 +2575,34 @@ sub start_run {
 	$saverunbuffer = "";
 
 	# Initiate a timer that saves the data to the file.
-	$savefiletimer = $mw->repeat(10000 => \&save_run_file);	
+	$savefiletimer = $mw->repeat(10000 => \&runlog_save_buffer);	
     }
 }
 
-sub end_run {
-    save_run_file();
+sub runlog_end {
+    runlog_save_buffer();
     close(SAVEFILE);
     $menu_file->entryconfigure('End run', -state=>'disabled');
     $menu_file->entryconfigure('Start a run', -state=>'normal');
     $savefiletimer->cancel;
-    undef($saverunbuffer);    
+    undef($saverunbuffer);
+    if ($OPTIONS{'autostartrun'}) {
+	my $tofile = $mw->getSaveFile(
+	    -title => 'Save run-log as ...',
+	    -initialfile=> time2str("%Y%m%d_%H%M_", $log_first_time) . ($last_run || 'HG') . '.txt',
+	    -filetypes=>[['Text files', '.txt'],
+			 ['All Files', '*']],
+	    -defaultextension => '.txt'
+	);
+	if ($tofile && ($tofile ne $current_save_file)) {
+	    copy($current_save_file, $tofile) or print "\nERROR\ncannot copy run-file\n\n";
+	}
+    }
+    $current_save_file = '';
 }
 
 
-sub save_run_file {
+sub runlog_save_buffer {
     print SAVEFILE  $saverunbuffer;
     $saverunbuffer="";
 }
@@ -2717,6 +2744,13 @@ sub save_configuration {
         print CFGFILE "$_=$OPTIONS{$_}\n";	
     }
     close(CFGFILE);
+
+    if ($OPTIONS{'autostartrun'}) {
+	if (!$current_save_file && ($currentlogfile =~ /^nwclientLog[1-4]\.txt$]/)) {
+	    print "autostart run\n";
+	    runlog_start('currentrun.txt');
+	}
+    }
 }
 
 
