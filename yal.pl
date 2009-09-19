@@ -1198,7 +1198,13 @@ sub parse_srv_msg {
 	    $current_area = $hg_maps{$name}{'area'} // ''; # default: no area
 	}
 	else {
+	    $hg_maps{$name}{'new'} = 1 if !exists($hg_maps{$name});
 	    $current_area = '';
+	    if (!exists($hg_maps{$name}{'area'})) {
+		@parts = split(/ /, $name);
+		$current_area = $parts[0] if $#parts && exists($hg_areas{$parts[0]});
+		$hg_maps{$name}{'area'} = $current_area;
+	    }
 	}
 	$current_map = $name;
 
