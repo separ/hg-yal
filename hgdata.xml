@@ -1,8 +1,5 @@
-<?xml version="1.0" encoding="ISO-8859-1"?>
-<hg>
-<version>
-  <number>0.2</number>
-</version>
+<?xml version="1.0" encoding="UTF-8"?>
+<hg version="0.3">
 <areas>
   <area name="Hells">
     <ignore name="Muscle Mass" />
@@ -490,7 +487,7 @@
     <mob name="Massive Silt Scorp" race="Animal" type="Miniboss" />
     <mob name="The Voice" type="Miniboss" race="Aberration" />
   </area>
-  <area name="Dustbone">
+  <area name="Dustbone" transit="Desert">
     <map name="Harbinger's Trail" />
     <map name="The Furrow" />
     <map name="Vashyk's Fall - The Pit" />
@@ -575,7 +572,7 @@
     <mob name="Ssithrak S'jab Z'hedi" race="Reptilian" type="Miniboss"/>
     <mob name="Ssssy'is, Goddess-Empress of Ssithra and Devourer of Worlds" race="Dragon" type="Boss"/>
   </area>
-  <area name="Illithids">
+  <area name="Illithids" transit="Desert">
     <map name="Axis Eurundia" />
     <map name="Penumbra - Mid-ring Bore" />
     <map name="Penumbra - Geode Colony" />

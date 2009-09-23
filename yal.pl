@@ -1185,40 +1185,43 @@ sub parse_srv_msg {
     # where are we?
     if (/^You are now in (.*) \((.*)\)\.$/) {
 	my ($name, $pvp) = ($1, $2);
-	my @parts = split(/ - /, $name);
-	if ($#parts && exists($hg_areas{$parts[0]})) { # areaname is in map-name
-	    $current_area = shift @parts;
-	    $name = $parts[0];
-	}
-	elsif ($#parts && ($parts[0] =~ /(Avernus|Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/)) {
-	    $current_area = 'Hells('.(shift @parts).')';
-	    $name = $parts[0];
-	}
-	elsif (exists($hg_maps{$name})) {
+	
+	if (exists($hg_maps{$name})) {
 	    $current_area = $hg_maps{$name}{'area'} // ''; # default: no area
-	}
-	else {
-	    $hg_maps{$name}{'new'} = 1 if !exists($hg_maps{$name});
+	} else {
+	    $hg_maps{$name}{'new'} = 1;
 	    $current_area = '';
-	    if (!exists($hg_maps{$name}{'area'})) {
-		@parts = split(/ /, $name);
-		$current_area = $parts[0] if $#parts && exists($hg_areas{$parts[0]});
-		$hg_maps{$name}{'area'} = $current_area;
+
+	    my @parts = split(/ - /, $name);
+	    if ($#parts) {
+		if (exists($hg_areas{$parts[0]})) {
+		    $current_area = $parts[0];
+		}
+		elsif ($parts[0] =~ /(Avernus|Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/) {
+		    $current_area = $1;
+		    $hg_areas{$1} = {area => 'Hells', new => 1};
+		}
 	    }
+
+	    if (!$current_area) {
+		@parts = split(/ /, $parts[0]); # $name);
+		$current_area = $parts[0] if $#parts && exists($hg_areas{$parts[0]});
+	    }
+
+	    $hg_maps{$name}{'area'} = $current_area;
 	}
+
 	$current_map = $name;
+	# remember pvp-status of map
+	$hg_maps{$current_map}{'pvp'} = $pvp;
 
 	# which run are we doing?
 	$last_run = $current_area if $current_area;
-	# remember pvp-status of map
-	$hg_maps{$current_map}{'pvp'} = $pvp;
     }
 
     # area status: fugue/limbo/... ?
     elsif (/^You will (.*) if you respawn in this area\.$/) {
-	if ($current_map) {
-	    $hg_maps{$current_map}{'respawn'} = $1;
-	}
+	$hg_maps{$current_map}{'respawn'} = $1 if ($current_map);
     }
 
     # update demi count
