@@ -164,7 +164,7 @@ my %DMG_TYPE_ESO = (
 );
 my @DAMAGETYPES = ("Physical", "Acid", "Electrical", "Fire", "Cold", "Sonic", "Magical", "Divine", "Positive", "Negative", "Internal", "Vile", "Sacred", "Psionic", "Ectoplasmic");
 my @DAMAGETYPESIMM = ("Bludgeoning", "Piercing", "Slashing", "Acid", "Electrical", "Fire", "Cold", "Sonic", "Magical", "Divine", "Positive", "Negative");
-my @COLS = ("orange", "blue", "yellow", "white", "darkgray", "pink", "green", "red", "lightblue", "purple", "maroon","magenta","LightGoldenrod","DarkSeaGreen","DarkRed");
+my @COLS = ("orange", "#2160fe", "yellow", "white", "darkgray", "pink", "green", "red", "lightblue", "purple", "maroon","magenta","LightGoldenrod","DarkSeaGreen","DarkRed");
 
 
 # added short names for damage types (for use of hgdata.xml)
@@ -173,8 +173,8 @@ my %COLOURS = ("Physical" => "orange",
                    "Slashing" => "orange",
                    "Piercing" => "orange",
                    "Acid" => "green",
-                   "Electrical" => "blue",
-                   "Elec" => "blue", # hgdata.xml
+                   "Electrical" => "#2160fe",
+                   "Elec" => "#2160fe", # hgdata.xml
                    "Fire" => "red",
                    "Cold" => "lightblue",
                    "Sonic" => "orange",
