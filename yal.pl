@@ -98,7 +98,7 @@ my %hg_maps = ();
 my %hg_areas = ();
 my $parse_sub_mode = '';
 my $current_save_file = ''; # name of file we're saving the current run to
-my $log_first_time = 0; # first timestamp we've seen in the log
+my $log_start_ts = 0; # first timestamp we've seen in the log
 
 #
 # this is to hold the chat_dialog
@@ -659,7 +659,7 @@ sub parse_log_file {
 	# update server uptime if we did catch it once
 	if ($time // 0) {
 	    my $new_time = str2time($time) || 0;
-	    $log_first_time = $new_time if !$log_first_time; # remember first parsed timestamp
+	    $log_start_ts = $new_time if !$log_start_ts; # remember first parsed timestamp
 	    if ($new_time != $srv_time) {
 		# current second actually changed
 		$srv_time = $new_time;
@@ -2581,6 +2581,7 @@ sub runlog_start {
 	$menu_file->entryconfigure('Start a run', -state=>'disabled');
 
 	$saverunbuffer = "";
+	$log_start_ts = $srv_time if $srv_time; # update timestamp for run-start
 
 	# Initiate a timer that saves the data to the file.
 	$savefiletimer = $mw->repeat(10000 => \&runlog_save_buffer);	
@@ -2597,7 +2598,7 @@ sub runlog_end {
     if ($OPTIONS{'autostartrun'}) {
 	my $tofile = $mw->getSaveFile(
 	    -title => 'Save run-log as ...',
-	    -initialfile=> time2str("%Y%m%d_%H%M_", $log_first_time) . ($last_run || 'HG') . '.txt',
+	    -initialfile=> time2str("%Y%m%d_%H%M_", $log_start_ts) . ($last_run || 'HG') . '.txt',
 	    -filetypes=>[['Text files', '.txt'],
 			 ['All Files', '*']],
 	    -defaultextension => '.txt'
