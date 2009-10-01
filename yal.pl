@@ -443,6 +443,10 @@ my $fuguetimers = $frm_fugue->Scrolled('Text', -width=>17, -height=>10,
 
 $fuguetimers->tagConfigure("critical", -foreground => "red");
 $fuguetimers->tagConfigure("warning", -foreground => "pink");
+# use other colors for our own toon so we better see it
+$fuguetimers->tagConfigure("self", -foreground => "yellow");
+$fuguetimers->tagConfigure("criticalself", -foreground => "black", -background => 'red');
+$fuguetimers->tagConfigure("warningself", -foreground => "red");
 
 #start ills hacking                                                                       _______________
 
@@ -1148,7 +1152,7 @@ sub parse_combat_line {
 		} 
 		if (exists($party{$2})) {
 			# Start a death timer if it was a party member who died
-			push(@{$timers{300}}, $2);
+			push(@{$timers{300}}, $2) unless $current_map && !$hg_maps{$current_map}{'respawn'};
 		}
 		else {
 			# Check if the monster was a paragon
@@ -1682,17 +1686,18 @@ sub update_death_timers {
 	}
 	foreach my $player (@{$timers{$time}}) {
 	    my $timertext = sprintf "%2d:%02d %s \n", integer_div($time, 60), ($time % 60), $player;
+	    my $s = ($player eq $toon) ? 'self' : '';
 	    if ($time<10) {
-		$fuguetimers -> insert('end', $timertext, 'critical') ;
+		$fuguetimers -> insert('end', $timertext, "critical$s") ;
 	    }
 	    elsif ($time<30) {
-		$fuguetimers -> insert('end', $timertext, 'critical') ;
+		$fuguetimers -> insert('end', $timertext, "critical$s") ;
 	    }
 	    elsif ($time<60) {
-		$fuguetimers -> insert('end', $timertext, 'warning'); 
+		$fuguetimers -> insert('end', $timertext, "warning$s"); 
 	    }
 	    else {
-		$fuguetimers -> insert('end', $timertext);
+		$fuguetimers -> insert('end', $timertext, $s);
 	    }
 	}
 	delete($timers{$time});
