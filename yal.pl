@@ -963,7 +963,7 @@ sub parse_log_file {
 	#
 	# Starting hell run
 	# 
-	if (/$toon: Send me to (Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/) {
+	if (/\Q$toon\E: Send me to (Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/) {
 	    if ($OPTIONS{"hellentrymessagebox"}==1) {
 		my $clear_stats = $mw->messageBox(-message => "Clear stats?",
 						  -title => "Entering hells",
@@ -1519,7 +1519,7 @@ sub parse_line_area_Hells {
 
 # player commands to control YAL
 sub parse_player_cmds {
-	if (/$toon: \[Whisper\] \.(.+)/) {
+	if (/\Q$toon\E: \[Whisper\] \.(.+)/) {
 		my $command = $1;
 		if ($command eq "clear" || $command eq "reset") {
 			reset_all();
