@@ -1124,7 +1124,7 @@ sub parse_combat_line {
 	
 	# Special attacks. Kept by themselves because they are less frequent
 	# Flurry of blows still not matched !!
-	if (/(.+ \: )?(.+) attempts (Cleave|Great Cleave|Knockdown|Improved Knockdown|Disarm|Improved Disarm|Melee Touch Attack|Ranged Touch Attack|Called Shot\: Arm|Called Shot\: Leg) on (.+) : \*(hit|miss|critical hit|parried|target concealed: (\d+)%|resisted)\* : \((\d+) \+ (\d+)/) {
+	if (/(.+ \: )?(.+) attempts (Cleave|Great Cleave|Knockdown|Improved Knockdown|Disarm|Improved Disarm|Melee Touch Attack|Ranged Touch Attack|Called Shot\: Arm|Called Shot\: Leg|Whirlwind Attack) on (.+) : \*(hit|miss|critical hit|parried|target concealed: (\d+)%|resisted)\* : \((\d+) \+ (\d+)/) {
 		# print $_;
 		#my ($attacker, $defender, $attacktype, $roll, $ab) = ($2, $4, $3, $7, $8);
 		#$status = $5;
@@ -1580,6 +1580,7 @@ sub process_attack {
 	$MaxAC{$defender} = $ab+$roll if ($ab+$roll > $MaxAC{$defender});
     }
     elsif ($status =~ /(\d+)\%/) {
+	return if $status eq '100%'; # anti-exploit, not real conceal, so skip it
 	$dodge{$defender}++;
 	$conceal{$defender} = $1 if (!exists($conceal{$defender}));
 	$conceal{$defender} = $1 if $1 > $conceal{$defender};
