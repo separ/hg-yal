@@ -35,7 +35,6 @@ use Tk::ItemStyle;
 use Date::Format;
 use Date::Parse;
 
-use XML::Simple; # TODO: remove and use regexp to parse hgdata.xml
 use File::Copy; # for copying the runfile on run-end
 
 use subs qw/beep/;
@@ -94,8 +93,6 @@ my $logfile_info = "?";
 my $current_area = '';
 my $current_map = '';
 my $last_run = ''; # which non-ignore area == run were we last in?
-my %hg_maps = ();
-my %hg_areas = ();
 my $parse_sub_mode = '';
 my $current_save_file = ''; # name of file we're saving the current run to
 my $log_start_ts = 0; # first timestamp we've seen in the log
@@ -587,7 +584,10 @@ my $rpeffectstimers = $mw->repeat(1000 => \&update_effects_timers);
 load_configuration();
 dialog_chat_log();   # Setup the chat log 
 configure_fonts();   
-import_hgdata_xml(); # import hgdata.xml
+
+my (%HGdata, $HGmobs, $HGareas, $HGmaps);
+hgdata_import_xml(); # test ... replace upper call when ready
+
 print_immunities();
 if ($OPTIONS{'autostartrun'}) {
     runlog_start('currentrun.txt');
@@ -1152,7 +1152,7 @@ sub parse_combat_line {
 		} 
 		if (exists($party{$2})) {
 			# Start a death timer if it was a party member who died
-			push(@{$timers{300}}, $2) unless $current_map && !$hg_maps{$current_map}{'respawn'};
+			push(@{$timers{300}}, $2) unless $current_map && !$HGmaps->{$current_map}{'respawn'};
 		}
 		else {
 			# Check if the monster was a paragon
@@ -1190,34 +1190,34 @@ sub parse_srv_msg {
     if (/^You are now in (.*) \((.*)\)\.$/) {
 	my ($name, $pvp) = ($1, $2);
 	
-	if (exists($hg_maps{$name})) {
-	    $current_area = $hg_maps{$name}{'area'} // ''; # default: no area
+	if (exists($HGmaps->{$name})) {
+	    $current_area = $HGmaps->{$name}{'area'} // ''; # default: no area
 	} else {
-	    $hg_maps{$name}{'new'} = 1;
+	    $HGmaps->{$name}{'new'} = 1;
 	    $current_area = '';
 
 	    my @parts = split(/ - /, $name);
 	    if ($#parts) {
-		if (exists($hg_areas{$parts[0]})) {
+		if (exists($HGareas->{$parts[0]})) {
 		    $current_area = $parts[0];
 		}
 		elsif ($parts[0] =~ /(Avernus|Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/) {
 		    $current_area = $1;
-		    $hg_areas{$1} = {area => 'Hells', new => 1};
+		    $HGareas->{$1} = {area => 'Hells', new => 1};
 		}
 	    }
 
 	    if (!$current_area) {
 		@parts = split(/ /, $parts[0]); # $name);
-		$current_area = $parts[0] if $#parts && exists($hg_areas{$parts[0]});
+		$current_area = $parts[0] if $#parts && exists($HGareas->{$parts[0]});
 	    }
 
-	    $hg_maps{$name}{'area'} = $current_area;
+	    $HGmaps->{$name}{'area'} = $current_area;
 	}
 
 	$current_map = $name;
 	# remember pvp-status of map
-	$hg_maps{$current_map}{'pvp'} = $pvp;
+	$HGmaps->{$current_map}{'pvp'} = $pvp;
 
 	# which run are we doing?
 	$last_run = $current_area if $current_area;
@@ -1225,7 +1225,7 @@ sub parse_srv_msg {
 
     # area status: fugue/limbo/... ?
     elsif (/^You will (.*) if you respawn in this area\.$/) {
-	$hg_maps{$current_map}{'respawn'} = $1 if ($current_map);
+	$HGmaps->{$current_map}{'respawn'} = $1 if ($current_map);
     }
 
     # update demi count
@@ -2811,8 +2811,8 @@ sub update_info_area {
 	    $widget->insert('end', " $last_run:", $def_color) if $last_run;
 	    if ($current_map) { # TODO: && $OPTIONS{'show_area_info'}
 		$widget->insert('end', " $current_map", $def_color);
-		if ($hg_maps{$current_map}{'respawn'}) {
-		    $widget->insert('end', ' '.$hg_maps{$current_map}{'respawn'}, 'red');
+		if ($HGmaps->{$current_map}{'respawn'}) {
+		    $widget->insert('end', ' '.$HGmaps->{$current_map}{'respawn'}, 'red');
 		}
 	    }
 	}
@@ -2831,8 +2831,8 @@ my %hg_ignore_enemies = ();
 
 sub hg_para_level {
     my $monster = shift;
-    if (exists($hgmonsters{$monster})) {
-	return $hgmonsters{$monster}{'paragon'} || 0;
+    if (exists($HGmobs->{$monster})) {
+	return $HGmobs->{$monster}{'paragon'} || 0;
     }
     return 0; #exists($PARAMONSTERS{$monster}) ? $PARAMONSTERS{$monster} : 0;
 }
@@ -2841,8 +2841,8 @@ sub hg_do_not_hit {
     my $monster = shift;
     # TODO: remove usage of "old" data once we get nohit-flags in xml-data
     return 1 if exists($DONOTHIT{$monster});
-    if (exists($hgmonsters{$monster})) {
-	return exists($hgmonsters{$monster}{'kb'}); # eq 'Area';
+    if (exists($HGmobs->{$monster})) {
+	return exists($HGmobs->{$monster}{'kb'}); # eq 'Area';
     }
     return 0;
     #return exists($DONOTHIT{$monster});
@@ -2850,14 +2850,14 @@ sub hg_do_not_hit {
 
 sub hg_ignore_enemy {
     my $monster = shift;
-    return exists($hg_ignore_enemies{$monster});
+    return $HGmobs->{$monster}{'ignore'} // 0; #exists($hg_ignore_enemies{$monster});
 }
 
 sub hg_mob_heals {
     my $monster = shift;
     my $type = shift;
-    return 0 if (!exists($hgmonsters{$monster}) || !exists($hgmonsters{$monster}{'heal'}));
-    my $h = $hgmonsters{$monster}{'heal'};
+    return 0 if (!exists($HGmobs->{$monster}) || !exists($HGmobs->{$monster}{'heal'}));
+    my $h = $HGmobs->{$monster}{'heal'};
     return $type ? $h->{$type} : $h;
 }
 
@@ -2868,8 +2868,8 @@ sub append_monster {
     my $flags = '';
     my $heals = '';
 
-    if (exists($hgmonsters{$monster})) {
-	my $m = $hgmonsters{$monster};
+    if (exists($HGmobs->{$monster})) {
+	my $m = $HGmobs->{$monster};
 #print "monster: $monster - ". Dumper($m);
 	if (exists($m->{'paragon'})) {
 	    my $pl = $m->{'paragon'}; #hg_para_level($monster); # para level
@@ -2959,83 +2959,101 @@ sub append_dmg_line {
 	append_monster($widget, $mob);
 }
 
-sub import_hgdata_xml {
-    # create object
-    my $xml = new XML::Simple;
+sub hgdata_import_xml {
+    my $file = 'hgdata.xml';
+    my @otags = (); # open tags
+    my $ctTag; # container tag ref
 
-    # read XML file
-    my $data = $xml->XMLin("hgdata.xml");
+    open(IN, $file) || die "Can't open XML file '$file'\n";
+    my $header = <IN>;
+    $header =~ /^<\?xml.*\?>/ || die "Not an XML file\n";
 
-    # TODO: verify file is ok (check version, ... ?)
+    # read the data
+    while (<IN>) {
+	s/^\s*(.*?)\s*$/$1/;
+	next if !$_; # line empty now
+	if (/<(\/?)(\w+)\s*(.*?)\s*(\/?)>/) {
+	    my ($sl1, $cTag, $atts, $sl2) = ($1, $2, $3, $4);
+	    my %tag = (tag => $cTag);
 
-    # access XML data
-    my $areas = $data->{areas}->{area};
-    my $areaname;
-    my $area;
-    while (($areaname, $area) = each %{$areas}) {
-
-	$hg_areas{$areaname} = {};
-	if (exists($area->{'map'})) {
-	    #my $maps = $area->{'map'};
-	    #printf "found maps in $areaname\n";
-	    my $name;
-	    foreach $name (keys %{$area->{'map'}}) {
-		my @parts = split(/ - /, $name);
-		if ($areaname eq $parts[0]) {
-		    shift @parts;
-		    $name = $parts[0];
-		}
-		$hg_maps{$name}{'area'} = $areaname;
-		#printf "\t$areaname | $name\n";
+	    if ($sl1) { # closing tag
+		my $oTag = pop @otags;
+		die "Invalid xml file - closing tag doesn't match opening tag ($oTag->{tag}/$cTag)\n" if $oTag->{'tag'} ne $cTag;
+		$ctTag = $otags[-1];
+		next; # closing tag has no attributes
 	    }
-	}
 
-	# monster to ignore
-	if (exists($area->{ignore})) {
-	    my $name;
-	    if (exists($area->{ignore}->{name})) {
-		$name = $area->{ignore}->{name};
-		$hg_ignore_enemies{$name} = 1;
-	    } else {
-		foreach $name (keys %{$area->{ignore}}) {
-		    $hg_ignore_enemies{$name} = 1;
-		}
-	    }
-	}
-
-	# mobs we want to know more about
-	next if !exists($area->{mob}) or $areaname eq '*';
-	my $mobs = $area->{mob};
-	my $mobname;
-	my $mob;
-	while (($mobname, $mob) = each %{$mobs}) {
-	    if (exists($hgmonsters{$mobname})) {
-		$hgmonsters{$mobname}{'area'} .= ",$areaname";
+	    # extract name if defined
+	    $atts =~ s/name=\"(.*?)\"//;
+	    my $cName = $1 // ''; # current name = value name attribute
+	    if ($cName && exists($HGdata{$cTag}{$cName})) {
+		# duplicate - probably mob in another area
 		next;
 	    }
-	    $hgmonsters{$mobname} = $mob;
-	    $hgmonsters{$mobname}{'area'} = $areaname;
-	    if (exists($mob->{'race'})) {
-		$mob->{'race'} =~ /^(\w)(\w)\w+( (\w)\w+)?$/;
-		$mob->{'race_short'} = $1 . (defined($4) ? $4 : $2);
+
+	    # get rest of attributes
+	    my %cObj = (); # current object
+	    while ($atts =~ s/^\s*(\w+)=\"(.*?)\"//) {
+		$cObj{$1} = $2;
 	    }
-	    if (exists($mob->{'type'})) {
-		$mob->{'type'} =~ /^(\w)\w+( (\d))?$/;
-		$mob->{'type_short'} = $1;
-		$mob->{'type_short'} .= $3 if defined($3);
+
+	    # save object for quick access
+	    if ($cName) {
+		$HGdata{$cTag}{$cName} = \%cObj;
+		# and put a ref in container (if we have a named container)
+		$ctTag->{'obj'}{$cTag}{$cName} = \%cObj if $ctTag && $ctTag->{'obj'};
 	    }
-	    if (exists($mob->{'qual'}) && ($mob->{'qual'} =~ /^(\d)\.0$/)) {
-		$mob->{'qual'} = $1; # strip ".0" from end of qual if it's there
+
+	    if ($cTag eq 'map') {
+		$cObj{'area'} = $ctTag->{'name'}; # container is area, take name of container
 	    }
-	    if (exists($mob->{'heals'})) {
-		my ($el, $proc) = split(/ /, $mob->{'heals'});
-		$mob->{'heal'}{$el} = $proc;
+	    elsif ($cTag eq 'mob') {
+		if (exists($cObj{'race'})) {
+		    $cObj{'race'} =~ /^(\w)(\w)\w+( (\w)\w+)?$/;
+		    $cObj{'race_short'} = $1 . (defined($4) ? $4 : $2);
+		}
+		if (exists($cObj{'type'})) {
+		    $cObj{'type'} =~ /^(\w)\w+( (\d))?$/;
+		    $cObj{'type_short'} = $1;
+		    $cObj{'type_short'} .= $3 if defined($3);
+		}
+		if (exists($cObj{'qual'}) && ($cObj{'qual'} =~ /^(\d)\.0$/)) {
+		    $cObj{'qual'} = $1; # strip ".0" from end of qual if it's there
+		}
+		if (exists($cObj{'heals'})) {
+		    my ($el, $proc) = split(/ /, $cObj{'heals'});
+		    $cObj{'heal'}{$el} = $proc;
+		}
+		if (exists($cObj{'syn'})) { # build translation hash if we have a syn-attribute
+		    $HGdata{'syn'}{$cObj{'syn'}} = $cName;
+		}
 	    }
+
+	    if (!$sl2) { # opening tag
+		die "Not a HG xml file\n" if ($#otags < 0) && ($cTag ne 'hg');
+		if (($cTag eq 'version') && /<number>(.*)<\/number>/) {
+		    $HGdata{'version'} = $1;
+		    next;
+		}
+		$tag{'name'} = $cName if $cName;
+		$tag{'obj'} = \%cObj;
+		push @otags, \%tag;
+		$ctTag = \%tag; # set container for processing children
+	    }
+	    # else: simple tag with no children
 	}
     }
 
-    my $ignore_maps = $data->{ignoremaps}{'map'};
-    while (($areaname, $area) = each %{$ignore_maps}) {
-	$hg_maps{$areaname}{'area'} = '';
+    # do some post-processing
+    my ($name, $obj);
+    while (($name, $obj) = each %{$HGdata{'ignore'}}) {
+	#print "moving ignored mob: $name\n";
+	$HGdata{'mob'}{$name} = $obj;
+	$HGdata{'mob'}{$name}{'ignore'} = 1;
     }
+    #delete $HGdata{'ignore'};
+
+    $HGmobs = $HGdata{'mob'};
+    $HGmaps = $HGdata{'map'};
+    $HGareas = $HGdata{'area'};
 }
