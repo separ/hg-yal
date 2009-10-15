@@ -1418,7 +1418,7 @@ sub parse_sm_who {
 	    # Remove DM tag
 		if ($debug) {print "$_ in who output ";}
 	    my $toonname = $2;
-	    $toonname =~ s/ \[DM PC\]//;
+	    $toonname =~ s/ \[(DM|Guide) PC\]$//;
 	    # Remove guild tag
 	    #removed, done with regex
 		#$toonname =~ s/ <.+>//;
