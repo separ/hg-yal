@@ -42,66 +42,36 @@ use warnings;
 use strict;
 
 my $version = "0.1.4b";
-my $kills = 0;
-my $deaths = 0;
-my $totalxp = 0;
-my $toon = "";
-my $hits = 0;
-my %paracount = ();    # Number of paragon hell monsters
-my $totalmobkills = 0; # Number of non-party member kills 
-my $statusmessage ="";
-my $lastkiller = "";
-my $lastkilled = "";
-my $logfilenumber = 1;
-my $currentlogfile = "nwclientLog1.txt";
-my $cfgfile = "yal.cfg";
+# some container vars to take over the countless globals
+my %YAL;
+my %YW = (); # YAL Widgets
+
+my %emptyRun; # blueprint for run-data, filled with hg_run_init()
+my %currentRun; # data collection for current run
+my $RUN = \%currentRun; # run data (hits, kills, dmg, ...)
+my $runData; # = $$RUN{data}; # run data of individual actors (mobs or party members)}
+
+my $HGdata; # to collect data (saves, ab, ac, ...)
+
+yal_init();
+
 my %timers = ();   # A hash of arrays
 my %Effecttimers = ();
 my @grtimer = ();
 my @gstimer = ();
-my $timertext = "";
-my $other = "";
-my $hitfrequency = 0;
-my $defencefrequency = 0;
-my $hitfrequencyweight = 30;
 my %damage = ();
 
 my $shamelessadvertising = 0;
 
-my $gearcontainer = "";
-my $next_item_rarity = '';
-my $bankchest = "default";
-my $lastentry = "";
-my $saverunbuffer;
-my $savefiletimer;
-# ills hacking my $othertimers;
-my $effectid;     # Id to keep information about who effect listings concern
+# ills hacking my $YW{othertimers};
 
 my $debug = 0;
-my $parsetime = 3000;  # The number of miliseconds between each parsing of the file
-
-# for edits by Separ
-my $server = "";
-my $srv_time = 0;
-my $myserverwho = 0;
-my $catchpartywho = 0;
-my $server_uptime = 0;
-my $server_round = 0; # every 6 seconds a new round.
-my $uptime_secs = 0;
-my $uptimeat = 0; # at which time did we catch the uptime msg
-my $logfile_info = "?";
-my $current_area = '';
-my $current_map = '';
-my $last_run = ''; # which non-ignore area == run were we last in?
-my $parse_sub_mode = '';
-my $current_save_file = ''; # name of file we're saving the current run to
-my $log_start_ts = 0; # first timestamp we've seen in the log
 
 #
 # this is to hold the chat_dialog
 #
-my $chatlog_dialog;
-my $chatlog;
+# $YW{dlg_chatlog};
+# $YW{t_chatlog};
 
 #
 # The following hashes keeps most of the information
@@ -335,20 +305,20 @@ my $col_acid = "Green1";
 #---------------------------------------------------
 
 # Main Window
-my $mw = new MainWindow();
-$mw ->title("NWN logger v" .$version . ". --- by Claus Ekstrom 2008. Edits by Illandous & Separ");
+$YW{mw} = new MainWindow();
+$YW{mw} ->title("NWN logger v" .$version . ". --- by Claus Ekstrom 2008. Edits by Illandous & Separ");
 
 #
 # Now define the main frames/areas of the GUI
 # The GUI is split into 3 areas: a panel on the rhs and the "main" bit which is split into an upper and lower panel
 #
-my $frm_top = $mw -> Frame();
-my $frm_bottom = $mw -> Frame(-label=>"Spell/turning resists and saves");
-my $frm_menu = $mw -> Frame(-relief=>'raised', -borderwidth=>2)  -> pack(-side=>'top', -fill=>'x');
+$YW{frm_top} = $YW{mw} -> Frame();
+$YW{frm_bottom} = $YW{mw} -> Frame(-label=>"Spell/turning resists and saves");
+$YW{frm_menu} = $YW{mw} -> Frame(-relief=>'raised', -borderwidth=>2)  -> pack(-side=>'top', -fill=>'x');
 
 
 # Set up the menu bar
-my $menu_view = $frm_menu -> Menubutton(-text=>'View', 
+$YW{menu_view} = $YW{frm_menu} -> Menubutton(-text=>'View', 
 					   -underline=>0,
 					   -tearoff => 'no',
 					   -menuitems => [['command' => "Party ~summary",
@@ -361,7 +331,7 @@ my $menu_view = $frm_menu -> Menubutton(-text=>'View',
 							   -command => \&dialog_chat_log],
 							  ]) -> pack(-side=>'left');
 
-my $menu_party = $frm_menu -> Menubutton(-text=>'Party',
+$YW{menu_party} = $YW{frm_menu} -> Menubutton(-text=>'Party',
 					 -underline=>0,
 					 -tearoff => 'no',
 					 -menuitems => [['command' => "~Party setup",
@@ -370,7 +340,7 @@ my $menu_party = $frm_menu -> Menubutton(-text=>'Party',
 							 -command=>\&clear_party]]) -> pack(-side=>'left');
 
 
-my $menu_options = $frm_menu -> Menubutton(-text=>'Options', 
+$YW{menu_options} = $YW{frm_menu} -> Menubutton(-text=>'Options', 
 					   -underline=>0,
 					   -tearoff => 'no',
 					   -menuitems => [['command' => "~Preferences", 
@@ -379,7 +349,7 @@ my $menu_options = $frm_menu -> Menubutton(-text=>'Options',
 							  ['command' => "~Reset all stats", 
 							   -command => \&reset_all]]) -> pack(-side=>'left');
 
-my $menu_file = $frm_menu -> Menubutton(-text=>'File', 
+$YW{menu_file} = $YW{frm_menu} -> Menubutton(-text=>'File', 
 					-underline=>0,
 					-tearoff => 'no',
 					-menuitems => [['command' => "Save ~HTML summary",
@@ -396,90 +366,95 @@ my $menu_file = $frm_menu -> Menubutton(-text=>'File',
 							-command => \&save_inventories]
 						       ]) -> pack(-side=>'left');
 
+$YW{l_mod_date} = $YW{frm_menu} -> Label(-text=>'Mod.Build: ?') -> pack(-side=>'right');
+
 ## Top info frame: name, current server, uptime, logfile info
-my $frm_info = $frm_top -> Frame();
-$frm_info -> pack(-side=>'top', -anchor=>'w', -fill=>'x');
-my $frm_name = $frm_info -> Frame() ->pack(-side=>'top');
-my $toon_name = $frm_info -> LabEntry(-textvariable => \$toon,
+$YW{frm_info} = $YW{frm_top} -> Frame();
+$YW{frm_info} -> pack(-side=>'top', -anchor=>'w', -fill=>'x');
+$YW{frm_name} = $YW{frm_info} -> Frame() ->pack(-side=>'top');
+$YW{toon_name} = $YW{frm_info} -> LabEntry(-textvariable => \$$RUN{toon},
 				    -label => "Name",
 				    -labelPack => [-side => 'left']) -> pack(-side=>'left');
-my $newlog     = $frm_info -> Button(-text => "Next", -command =>\&inc_logcount, -padx => 3, -pady => 1)->pack(-side=>"right");
-my $frm_logfile = $frm_info -> Frame() ->pack(-side=>'top');
-my $logfile_text = $frm_info -> LabEntry(-textvariable => \$logfile_info,
+$YW{newlog} = $YW{frm_info} -> Button(-text => "Next", -command =>\&inc_logcount, -padx => 3, -pady => 1)->pack(-side=>"right");
+$YW{frm_logfile} = $YW{frm_info} -> Frame() ->pack(-side=>'top');
+$YW{logfile_text} = $YW{frm_info} -> LabEntry(-textvariable => \$YAL{logfile_info},
 				    -label => "Log:",
 				    #-width => 5, # increase if we want to show seconds
 				    -state => 'disabled', -disabledforeground => 'black',
 				    -labelPack => [-side => 'left']) -> pack(-side=>'right');
-my $top_info_area = $frm_info -> Text(-width=>60, -height=>1, 
+$YW{top_info_area} = $YW{frm_info} -> Text(-width=>60, -height=>1, 
 				    -foreground=>'white', -background=>'black',
 				    -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}])->pack(-side=>"top", -fill=>"x", -expand=>0);
 
 
 ## Fugue timers
-my $frm_rightbar  = $mw -> Frame();
-my $frm_killdeath = $frm_rightbar -> Frame(-relief=>'groove', -borderwidth=>2, -background=>"black") -> pack(-side=>'bottom', -fill=>'x');
-my $frm_othertimers= $frm_rightbar -> Frame(-label=>"Timers", -relief=>'groove', -borderwidth=>2, -background=>"black") -> pack(-side=>'bottom', -fill=>'x');
-my $othertimers = $frm_othertimers-> Scrolled('Text', -width=>17, -height=>8, 
+$YW{frm_rightbar} = $YW{mw} -> Frame();
+$YW{frm_killdeath} = $YW{frm_rightbar} -> Frame(-relief=>'groove', -borderwidth=>2, -background=>"black") -> pack(-side=>'bottom', -fill=>'x');
+$YW{frm_othertimers} = $YW{frm_rightbar} -> Frame(-label=>"Timers", -relief=>'groove', -borderwidth=>2, -background=>"black") -> pack(-side=>'bottom', -fill=>'x');
+$YW{othertimers} = $YW{frm_othertimers} -> Scrolled('Text', -width=>17, -height=>8, 
 				       -foreground=>'white', -background=>'black',
 				       -scrollbars=>'s', -wrap=>'none', -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]) -> pack(-side=>'bottom', -fill=>'both', -expand=>1);
-$othertimers->tagConfigure("none", -foreground => "red");
-$othertimers->tagConfigure("dispelled", -foreground => "orange");
-$othertimers->tagConfigure("casting", -foreground => "blue");
+$YW{othertimers}->tagConfigure("none", -foreground => "red");
+$YW{othertimers}->tagConfigure("dispelled", -foreground => "orange");
+$YW{othertimers}->tagConfigure("casting", -foreground => "blue");
 
-my $frm_dynamicwindow = $frm_rightbar -> Frame(-label=>"Hit Counter", -relief=>'groove', -borderwidth=>2);
-$frm_dynamicwindow -> Label(-textvariable => \$hits, -foreground=>$col_cold, -background=>"black") ->pack(-fill =>'x');
+$YW{frm_dynamicwindow} = $YW{frm_rightbar} -> Frame(-label=>"Hit Counter", -relief=>'groove', -borderwidth=>2);
+$YW{frm_dynamicwindow} -> Label(-textvariable => \$$RUN{hits}, -foreground=>$col_cold, -background=>"black") ->pack(-fill =>'x');
 
-my $frm_dynamicdamageheaders = $frm_rightbar -> Frame(-label=>"Hit Counter", -relief=>'groove', -borderwidth=>2);
-$frm_dynamicdamageheaders -> Label(-textvariable => \$hits, -foreground=>$col_cold, -background=>"black") ->pack(-fill =>'x');
+$YW{frm_dynamicdamageheaders} = $YW{frm_rightbar} -> Frame(-label=>"Hit Counter", -relief=>'groove', -borderwidth=>2);
+$YW{frm_dynamicdamageheaders} -> Label(-textvariable => \$$RUN{hits}, -foreground=>$col_cold, -background=>"black") ->pack(-fill =>'x');
 
-my $frm_fugue     = $frm_rightbar -> Frame(-label=>"Fugue timers", -relief=>'groove', -borderwidth=>2) -> pack(-side=>'top', -fill=>'both', -expand=>1);
+$YW{frm_fugue} = $YW{frm_rightbar} -> Frame(-label=>"Fugue timers", -relief=>'groove', -borderwidth=>2) -> pack(-side=>'top', -fill=>'both', -expand=>1);
 
-my $fuguetimers = $frm_fugue->Scrolled('Text', -width=>17, -height=>10, 
+$YW{fuguetimers} = $YW{frm_fugue}->Scrolled('Text', -width=>17, -height=>10, 
 				       -foreground=>'white', -background=>'black',
 				       -scrollbars=>'s', -wrap=>'none', -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]) -> pack(-side=>'top', -fill=>'both', -expand=>1);
 
-$fuguetimers->tagConfigure("critical", -foreground => "red");
-$fuguetimers->tagConfigure("warning", -foreground => "pink");
+$YW{fuguetimers}->tagConfigure("critical", -foreground => "red");
+$YW{fuguetimers}->tagConfigure("warning", -foreground => "pink");
 # use other colors for our own toon so we better see it
-$fuguetimers->tagConfigure("self", -foreground => "yellow");
-$fuguetimers->tagConfigure("criticalself", -foreground => "black", -background => 'red');
-$fuguetimers->tagConfigure("warningself", -foreground => "red");
+$YW{fuguetimers}->tagConfigure("self", -foreground => "yellow");
+$YW{fuguetimers}->tagConfigure("criticalself", -foreground => "black", -background => 'red');
+$YW{fuguetimers}->tagConfigure("warningself", -foreground => "red");
 
 #start ills hacking                                                                       _______________
 
 
 ## Character status
-my $frm_char = $mw -> Frame(-relief=>'ridge', -borderwidth=>2);
+$YW{frm_char} = $YW{mw} -> Frame(-relief=>'ridge', -borderwidth=>2);
 
-my $frm_kills     = $frm_killdeath -> Frame(-label=>"Kills:", -relief=>'groove', -borderwidth=>2, -background=>"black") -> pack(-side=>'top', -fill=>'x');
-my $frm_deaths    = $frm_killdeath -> Frame(-label=>"Deaths:", -relief=>'groove', -borderwidth=>2) -> pack(-side=>'top', -fill=>'x');
-$frm_kills -> Label(-textvariable => \$kills, -foreground=>$col_acid, -background=>"black") ->pack();
-$frm_kills -> Label(-textvariable => \$lastkilled, -foreground=>"white", -background=>"black") ->pack();
+$YW{frm_kills} = $YW{frm_killdeath} -> Frame(-relief=>'groove', -borderwidth=>2, -background=>"black") -> pack(-side=>'top', -fill=>'x');
+$YW{frm_deaths} = $YW{frm_killdeath} -> Frame(-relief=>'groove', -borderwidth=>2) -> pack(-side=>'top', -fill=>'x');
 
-$frm_deaths -> Label(-textvariable => \$deaths, -foreground=>$col_fire) ->pack();
-$frm_deaths -> Label(-textvariable => \$lastkiller) ->pack();
+$YW{frm_kills} -> Label(-textvariable => \$$RUN{lastKilled}, -foreground=>"white", -background=>"black") ->pack(-side=>'bottom', -fill=>'x');
+$YW{frm_kills} -> Label(-text => 'Kills: ', -foreground=>$col_acid, -background=>"black") ->pack(-side=>'left');
+$YW{frm_kills} -> Label(-textvariable => \$$RUN{kills}, -foreground=>$col_acid, -background=>"black") ->pack();
+
+$YW{frm_deaths} -> Label(-textvariable => \$$RUN{lastKiller}) ->pack(-side=>'bottom', -fill=>'x');
+$YW{frm_deaths} -> Label(-text => 'Deaths: ', -foreground=>$col_fire) ->pack(-side=>'left');
+$YW{frm_deaths} -> Label(-textvariable => \$$RUN{deaths}, -foreground=>$col_fire) ->pack();
 
 
-my $conceal_lab = $frm_char -> Label(-text => "Conceal");
+$YW{conceal_lab} = $YW{frm_char} -> Label(-text => "Conceal");
 
-my $saves   = $frm_bottom -> Scrolled('Text', -width=>80, -height=>4, 
+$YW{saves} = $YW{frm_bottom} -> Scrolled('Text', -width=>60, -height=>4, 
 				      -foreground=>'white', -background=>'black',
 				      -font => [-family => $OPTIONS{"font-resist"}, -size=>$OPTIONS{"fontsize-resist"}],
 				      -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'right', -fill=>'both', -expand=>1);
-my $resists = $frm_bottom -> Scrolled('Text', -width=>60, -height=>4, 
+$YW{resists} = $YW{frm_bottom} -> Scrolled('Text', -width=>60, -height=>4, 
 				      -foreground=>'white', -background=>'black',
 				      -font => [-family => $OPTIONS{"font-resist"}, -size=>$OPTIONS{"fontsize-resist"}],
 				      -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'right', -fill=>'both', -expand=>1);
 
 
-$resists->tagConfigure("darkgray", -foreground => "darkgray");
-$resists->tagConfigure("lightblue", -foreground => "lightblue");
-$resists->tagConfigure("yellow", -foreground => "yellow");
-$resists->tagConfigure("red", -foreground => "red");
-$resists->tagConfigure("green", -foreground => "green");
-$othertimers->tagConfigure("casts", -foreground => "orange");
-$saves->tagConfigure("lightblue", -foreground => "lightblue");
-$saves->tagConfigure("yellow", -foreground => "yellow");
+$YW{resists}->tagConfigure("darkgray", -foreground => "darkgray");
+$YW{resists}->tagConfigure("lightblue", -foreground => "lightblue");
+$YW{resists}->tagConfigure("yellow", -foreground => "yellow");
+$YW{resists}->tagConfigure("red", -foreground => "red");
+$YW{resists}->tagConfigure("green", -foreground => "green");
+$YW{othertimers}->tagConfigure("casts", -foreground => "orange");
+$YW{saves}->tagConfigure("lightblue", -foreground => "lightblue");
+$YW{saves}->tagConfigure("yellow", -foreground => "yellow");
 
 
 #$resist -> Subwidget("text") -> tagConfigure("darkgray", -foreground => "darkgrey");
@@ -487,85 +462,86 @@ $saves->tagConfigure("yellow", -foreground => "yellow");
 #
 # Make a dummy label
 #
-my $frm_inc = $frm_top -> Frame(-label => "Incoming damage:") -> pack(-side=>"top", -anchor=>"w", -fill=>"both", -expand=>1);
-my $frm_out = $frm_top -> Frame(-label => "Outgoing damage:") -> pack(-side=>"top", -anchor=>"w", -fill=>"both", -expand=>1);
+$YW{frm_inc} = $YW{frm_top} -> Frame(-label => "Incoming damage:") -> pack(-side=>"top", -anchor=>"w", -fill=>"both", -expand=>1);
+$YW{frm_out} = $YW{frm_top} -> Frame(-label => "Outgoing damage:") -> pack(-side=>"top", -anchor=>"w", -fill=>"both", -expand=>1);
 
-my $hits_inc = $frm_inc -> Scrolled('Text', -width=>35, -height=>6, 
+$YW{hits_inc} = $YW{frm_inc} -> Scrolled('Text', -width=>35, -height=>6, 
 				      -foreground=>'white', -background=>'black',
 				      -tabs => [$OPTIONS{"fontsize-hit"}*5], # screen distance sucks on my laptop -tabs => [qw/.3i/],
 				      -font => [-family => $OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}],
 				      -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'left', -fill=>"both", -expand=>1);
 
-my $frame_inc_header = $frm_inc -> Frame() -> pack(-side=>'right', -fill=>"both", -expand=>1);
+$YW{frm_inc_header} = $YW{frm_inc} -> Frame() -> pack(-side=>'right', -fill=>"both", -expand=>1);
 
-my $dmgheader_inc = $frame_inc_header -> Text(-width=>60, -height=>1, 
+$YW{dmgheader_inc} = $YW{frm_inc_header} -> Text(-width=>60, -height=>1, 
 				      -foreground=>'white', -background=>'black',
 				      -tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
 				      -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}])->pack(-side=>"top", -fill=>"x", -expand=>0);
 
-my $damage_inc = $frame_inc_header -> Scrolled('Text', -width=>60, -height=>6, 
+$YW{damage_inc} = $YW{frm_inc_header} -> Scrolled('Text', -width=>60, -height=>6, 
 				      -foreground=>'white', -background=>'black',
 				      -tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
 				      -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}],
 			              -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'top', -fill=>"both", -expand=>1);
 
-my $hits_out = $frm_out -> Scrolled('Text', -width=>35, -height=>6, 
+$YW{hits_out} = $YW{frm_out} -> Scrolled('Text', -width=>35, -height=>6, 
 				      -foreground=>'white', -background=>'black',
 				      -tabs => [$OPTIONS{"fontsize-hit"}*5], # screen distance sucks on my laptop -tabs => [qw/.3i/],
 				      -font => [-family => $OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}],
 				      -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'left', -fill=>'both', -expand=>1);
 
-my $frame_out_header = $frm_out -> Frame() -> pack(-side=>'right', -fill=>"both", -expand=>1);
-my $dmgheader_out = $frame_out_header -> Text(-width=>60, -height=>1, 
+$YW{frm_out_header} = $YW{frm_out} -> Frame() -> pack(-side=>'right', -fill=>"both", -expand=>1);
+$YW{dmgheader_out} = $YW{frm_out_header} -> Text(-width=>60, -height=>1, 
 				      -background=>'black',
 				      -tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
 				      -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}])->pack(-side=>"top", -fill=>"x", -expand=>0);
 
-my $damage_out = $frame_out_header -> Scrolled('Text', -width=>60, -height=>6, 
+$YW{damage_out} = $YW{frm_out_header} -> Scrolled('Text', -width=>60, -height=>6, 
 				      -foreground=>'white', -background=>'black',
 				      -tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
 				      -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}],
 			              -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'top', -fill=>"both", -expand=>1);
 
 # Now insert the headers _if_ the headers are desired
-$dmgheader_inc -> insert('end', "Tot\t", "white");
-$dmgheader_out -> insert('end', "Tot\t", "white");
+$YW{dmgheader_inc} -> insert('end', "Tot\t", "white");
+$YW{dmgheader_out} -> insert('end', "Tot\t", "white");
 foreach $_ (@DAMAGETYPES) {
-    $dmgheader_inc -> insert('end',  substr($_,0,3) . "\t",  "$COLOURS{$_}");
-    $dmgheader_out -> insert('end',  substr($_,0,3) . "\t",  "$COLOURS{$_}");
+    $YW{dmgheader_inc} -> insert('end',  substr($_,0,3) . "\t",  "$COLOURS{$_}");
+    $YW{dmgheader_out} -> insert('end',  substr($_,0,3) . "\t",  "$COLOURS{$_}");
 }
 
 
 
 ##
-my $frm_status = $mw -> Frame();
+$YW{frm_status} = $YW{mw} -> Frame();
+$YW{bt_show_imms} = $YW{frm_status} -> Button(-text => "Show", -padx => 3, -pady => 0) -> pack(-side => "right");
 # logfile info moved to top right
-#my $newlog     = $frm_status -> Button(-text => "New Log File", -command =>\&inc_logcount)->pack(-side=>"right");
-my $imms       = $frm_status -> Text(-background=>"black", -height=>1, width=>70, -tabs => [qw/.23i/],
+#my $YW{newlog}     = $YW{frm_status} -> Button(-text => "New Log File", -command =>\&inc_logcount)->pack(-side=>"right");
+$YW{imms} = $YW{frm_status} -> Text(-background=>"black", -height=>1, width=>70, -tabs => [qw/.23i/],
 				     -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]) -> pack(-side=>"right");
-my $status     = $frm_status -> Label(-textvariable => \$statusmessage, -borderwidth=>2, -relief=>'groove', -anchor=>"w") ->pack(-side=>"left", -fill => 'x', -expand=>1);
+$YW{l_status_msg} = $YW{frm_status} -> Label(-textvariable => \$YAL{statusmessage}, -borderwidth=>2, -relief=>'groove', -anchor=>"w") ->pack(-side=>"left", -fill => 'x', -expand=>1);
 
 
 ##
 ## Geometry management
 ##
-$frm_status -> pack(-side=>'bottom', -anchor=>'w', -fill=>'x');
-$frm_rightbar  -> pack(-side=>"right", -fill => 'y', -anchor=>'n');
-$frm_top    -> pack(-side=>'top', -expand=>1, -fill => 'both');
-$frm_bottom -> pack(-side=>'top', -expand=>1, -fill => 'both');
+$YW{frm_status} -> pack(-side=>'bottom', -anchor=>'w', -fill=>'x');
+$YW{frm_rightbar}  -> pack(-side=>"right", -fill => 'y', -anchor=>'n');
+$YW{frm_top} -> pack(-side=>'top', -expand=>1, -fill => 'both');
+$YW{frm_bottom} -> pack(-side=>'top', -expand=>1, -fill => 'both');
 
 
 
-my $parsetimer = $mw->repeat($parsetime => \&parse_log_file);
+$YAL{parsetimer} = $YW{mw}->repeat($YAL{parsetime} => \&parse_log_file);
 # This is really a poor mans version of the timers. A potential problem is the time NWN takes to write stuff to the log - espcially on network drives
 # It would be much smarter to continuously adjust the timers according to the log time. I may get around to that at some point
-my $rpdeathtimers = $mw->repeat(1000 => \&update_death_timers);   
-my $rpeffectstimers = $mw->repeat(1000 => \&update_effects_timers);
+$YAL{rpDeathTimers} = $YW{mw}->repeat(1000 => \&update_death_timers);   
+$YAL{rpEffectsTimers} = $YW{mw}->repeat(1000 => \&update_effects_timers);
 
 #
 # Make sure that the party selection page is listed when the program starts
 #
-# $mw->after(1 => \&dialog_party_entry);
+# $YW{mw}->after(1 => \&dialog_party_entry);
 
 
 
@@ -594,7 +570,7 @@ if ($OPTIONS{'autostartrun'}) {
 }
 
 
-open(LOGFILE, "$currentlogfile");
+open(LOGFILE, "$YAL{currentlogfile}");
 
 MainLoop;
 # save_configuration();
@@ -613,43 +589,42 @@ close(LOGFILE);
 #
 sub parse_log_file {
 
-    return if !(-e $currentlogfile);
+    return if !(-e $YAL{currentlogfile});
 
     # Make sure we're parsing the active log file
 
     # logfile- and run-info is now top-right
-    $logfile_info = $currentlogfile . (defined($saverunbuffer) ? ' (RUN)' : '');
+    $YAL{logfile_info} = $YAL{currentlogfile} . (defined($YAL{saverunbuffer}) ? ' (RUN)' : '');
 
-    #$statusmessage .= " | Total XP: " . $totalxp . " | Total dmg: " . (defined($damage_done{$toon}) ? $damage_done{$toon} : "None yet" ) ;
-    $statusmessage = "Total XP: " . $totalxp . " | Total dmg: " . (defined($damage_done{$toon}) ? $damage_done{$toon} : "None yet" ) ;
+    #$YAL{statusmessage} .= " | Total XP: " . $$RUN{totalxp} . " | Total dmg: " . (defined($damage_done{$$RUN{toon}}) ? $damage_done{$$RUN{toon}} : "None yet" ) ;
+    $YAL{statusmessage} = "Total XP: " . $$RUN{totalxp} . " | Total dmg: " . (defined($damage_done{$$RUN{toon}}) ? $damage_done{$$RUN{toon}} : "None yet" ) ;
 
     if ($OPTIONS{"showparagons"}==1) {
-	if ($totalmobkills>0) { 
-	    
-	    my $numberofparagons = (exists($paracount{1}) ? $paracount{1} : 0) + (exists($paracount{2}) ? $paracount{2} : 0) + (exists($paracount{3}) ? $paracount{3} : 0);
-	    $statusmessage .= " | Paragons: " . int($numberofparagons/$totalmobkills *1000)/10 . "%";
+	if ($$RUN{totalmobkills}>0) { 
+	    my $numberofparagons = (exists($$RUN{paracount}{1}) ? $$RUN{paracount}{1} : 0) + (exists($$RUN{paracount}{2}) ? $$RUN{paracount}{2} : 0) + (exists($$RUN{paracount}{3}) ? $$RUN{paracount}{3} : 0);
+	    $YAL{statusmessage} .= " | Paragons: " . int($numberofparagons/$$RUN{totalmobkills} *1000)/10 . "%";
 	}
 	else {
-	    $statusmessage .= " | Paragons: 0%";
+	    $YAL{statusmessage} .= " | Paragons: 0%";
 	}
     }
         
-    my $endhitout = ($hits_out -> yview())[1];
-    my $endhitinc = ($hits_inc -> yview())[1];
-    my $enddmgout = ($damage_out -> yview())[1];
-    my $enddmginc = ($damage_inc -> yview())[1];
-    my $endsaves  = ($saves -> yview())[1];
-    my $endresists= ($resists-> yview())[1];
+    my $endhitout = ($YW{hits_out} -> yview())[1];
+    my $endhitinc = ($YW{hits_inc} -> yview())[1];
+    my $enddmgout = ($YW{damage_out} -> yview())[1];
+    my $enddmginc = ($YW{damage_inc} -> yview())[1];
+    my $endsaves  = ($YW{saves} -> yview())[1];
+    my $endresists= ($YW{resists}-> yview())[1];
 
     # Clear the EOF flag
-    seek(LOGFILE,0,1) || ($statusmessage .= " | Log file not found!");
+    seek(LOGFILE,0,1) || ($YAL{statusmessage} .= " | Log file not found!");
     while(<LOGFILE>) {
-	if (defined($saverunbuffer)) {
-	    $saverunbuffer .= $_ ;
+	if (defined($YAL{saverunbuffer})) {
+	    $YAL{saverunbuffer} .= $_ ;
 	}
 
 	if (/^\s*$/) { # skip empty lines
-	    parse_sm_end() if $parse_sub_mode;
+	    parse_sm_end() if $YAL{parseSM};
 		next;
 	}
 
@@ -657,35 +632,38 @@ sub parse_log_file {
 	s/\015\012/\012/;
 	# drop the initial bit
 	s/\[CHAT WINDOW TEXT\]\s+//;
-	s/^\[([^\]]+)\]\s//;
-	my $time = $1 if defined $1;
+	my $time;
+	if (s/^\[([^\]]+)\]\s//) {
+	    $time = $1; # if defined $1;
+	}
 
 	# update server uptime if we did catch it once
 	if ($time // 0) {
+	    # my($dow, $mon, $day, $hr, $min, $sec) = $time =~ /(\S+) (\S+) (\d+) (\d+):(\d+):(\d+)/;
 	    my $new_time = str2time($time) || 0;
-	    $log_start_ts = $new_time if !$log_start_ts; # remember first parsed timestamp
-	    if ($new_time != $srv_time) {
+	    $$RUN{logFirstTS} = $new_time if !$$RUN{logFirstTS}; # remember first parsed timestamp
+	    if ($new_time != $$RUN{srvLogTS}) {
 		# current second actually changed
-		$srv_time = $new_time;
+		$$RUN{srvLogTS} = $new_time;
 		#print "$time -> " . str2time($time) . ", uptimeat|\n" if ($time);
-		if ($uptime_secs) {
-		    $server_uptime = $uptime_secs + ($srv_time - $uptimeat);
-		    my $current_round = int $server_uptime / 6;
+		if ($$RUN{srvBaseUptime}) {
+		    $$RUN{srvUptime} = $$RUN{srvBaseUptime} + ($$RUN{srvLogTS} - $$RUN{srvBaseTS});
+		    my $current_round = int $$RUN{srvUptime} / 6;
 		    update_top_info_area();
-		    if ($current_round != $server_round) {
+		    if ($current_round != $$RUN{srvRound}) {
 			# every 6 seconds we have a new round
-			#printf "new round: %d -> %d @ %d - %s\n", $server_round, $current_round, $server_uptime, time2str("%R", $server_uptime, 0);
-			$server_round = $current_round;
+			#printf "new round: %d -> %d @ %d - %s\n", $$RUN{srvRound}, $current_round, $$RUN{srvUptime}, time2str("%R", $$RUN{srvUptime}, 0);
+			$$RUN{srvRound} = $current_round;
 		    }
 		}
 	    }
 
 	    # if we got a timestamp all parsing submodes are finished
-	    parse_sm_end(); # $parse_sub_mode = '';
+	    parse_sm_end(); # $YAL{parseSM} = '';
 	}
-	elsif (/^  / && $parse_sub_mode) {
-		# data to collect from an info command if starting with '  ' (2 blanks)
-		next if parse_log_submode();
+	elsif (/^  / && $YAL{parseSM}) {
+	    # data to collect from an info command if starting with '  ' (2 blanks)
+	    next if parse_log_submode();
 	}
 
 	# Remove chats and stuff
@@ -703,7 +681,7 @@ sub parse_log_file {
 	   #if (/^    \#(\d+) (.+) \[(.+)\]/) {
 	   #ills effects
 	   if(/^    \#(\d+) (.+) \[((\d+)[m])?(\d+)[s].+\]/) {
-	   my $tempetimer = ($4 * 60) + $5;
+	   my $tempetimer = (($4 // 0) * 60) + $5;
 	   my $tempeid=$1;
 	   my $tempename= $2;
 	   #no longer required
@@ -730,52 +708,7 @@ sub parse_log_file {
 
 
        # Saves, skill and ability checks
-       if (/^(.+) : (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) vs. (.+) : \*(success|failure|success not possible)\* : .+ vs\. DC: (\d+)/) {
-	   $AbilityChecks{$3}{$2} = $5;
-           $saves -> insert('end',$_, 'lightblue');
-	   next;
-       }
-       if (/^(.+) : (Will|Fortitude|Reflex) Save : /) {
-           $saves -> insert('end',$_, 'white');
-	   next;	   
-       }
-       if (/^(.+) : (Will|Fortitude|Reflex) Save vs. (.+) : \*(success|failure)\* : \(\d+ \+ (\d+) = \d+ vs\. DC: (\d+)\)$/) {
-	   if ($toon eq $1) {
-	       $saves -> insert('end',$_, 'white');
-	   }
-	   else {
-	       chomp;
-	       $saves -> insert('end',$_, 'lightblue');
-	       if ($OPTIONS{"dcpercent"}==1) {
-		   $saves -> insert('end', " (" .((max(1, min(20, (($6-1) - $5)))))*5 . "%)"."\n", 'yellow');
-	       }
-	       else {
-		   $saves -> insert('end',"\n");
-	       }
-	   }
-	   $Saves{$1}{$2}{"min"}{$3} = $5 if (!exists($Saves{$1}{$2}{"min"}{$3}));
-	   $Saves{$1}{$2}{"max"}{$3} = $5 if (!exists($Saves{$1}{$2}{"max"}{$3}));
-	   $Saves{$1}{$2}{"min"}{$3} = $5 if $5 < $Saves{$1}{$2}{"min"}{$3};
-	   $Saves{$1}{$2}{"max"}{$3} = $5 if $5 > $Saves{$1}{$2}{"max"}{$3};
-	   next;	   
-       }
-       if (/^(.+) : (Discipline|Concentration|Taunt|Bluff) vs. (.+) : \*(success|failure|success not possible)\* : .+ vs\. DC: (\d+)/) {
-	   $SkillChecks{$3}{$2} = $5;
-	   if ($toon eq $1) {
-	       $saves -> insert('end',$_, 'white');
-	   }
-	   else {
-	       $saves -> insert('end',$_, 'lightblue');
-	   }
-	   next;	   
-       }
-
-
-       # Skills
-       if (/^$toon : (.+) vs\. (.+) : \*(success|failure)\* : /) {
-           $saves -> insert('end',$_, 'yellow');
-	   next;
-       }
+       next if parse_checks_and_saves();
 
 
        # Spell and turning resists
@@ -784,20 +717,20 @@ sub parse_log_file {
             my $who = $1;
 	    if ($2 =~ /unknown spell/) {
 		next if $OPTIONS{'skipunknownspells'};
-		if ($OPTIONS{"otherspells"} && ($who ne $toon)){  
-		    $resists -> insert('end',$_, 'darkgray');
+		if ($OPTIONS{"otherspells"} && ($who ne $$RUN{toon})){  
+		    $YW{resists} -> insert('end',$_, 'darkgray');
 		}
 	    }
 	    else {
-		if ($OPTIONS{"ownspells"} && ($1 eq $toon)) {
+		if ($OPTIONS{"ownspells"} && ($1 eq $$RUN{toon})) {
 		    #make sure it is a effect that we have seen
 			if (exists $MaxEffecttimers{$2}){
 			$Effecttimers {$2} = $MaxEffecttimers{$2};
 			}
-			$resists -> insert('end',$_, 'casts');
+			$YW{resists} -> insert('end',$_, 'casts');
 		}
-		elsif ($OPTIONS{"otherspells"} && ($1 ne $toon)){  
-		    $resists -> insert('end',$_, 'white');
+		elsif ($OPTIONS{"otherspells"} && ($1 ne $$RUN{toon})){  
+		    $YW{resists} -> insert('end',$_, 'white');
 		}
 	    }
 	    next;
@@ -806,20 +739,20 @@ sub parse_log_file {
 
        # Spell penetration
        if (/^(.+) : Spell Penetration : \*(success|failure)\* : \((\d+) \+ (\d+) .+ vs. SR: (\d+)\)$/) {
-	   $resists -> insert('end', "SP: $1 : ", 'lightblue');
+	   $YW{resists} -> insert('end', "SP: $1 : ", 'lightblue');
 	   if ($2 eq "success") {
-	       $resists -> insert('end', "*$2*", 'green');
+	       $YW{resists} -> insert('end', "*$2*", 'green');
 	   }
 	   else {
-	       $resists -> insert('end', "*$2*", 'red');
+	       $YW{resists} -> insert('end', "*$2*", 'red');
 	   }
-	   $resists -> insert('end', " : $3 + $4 = " . ($3 + $4) . " vs. SR: $5 ", 'lightblue');
+	   $YW{resists} -> insert('end', " : $3 + $4 = " . ($3 + $4) . " vs. SR: $5 ", 'lightblue');
 	   # List the spell penetration percentage if that is desired
 	   if ($OPTIONS{"sppercent"}==1) {
-	       $resists -> insert('end', "(" .(21 - (max(1, min(20, ($5 - $4)))))*5 . "%)"."\n", 'yellow');
+	       $YW{resists} -> insert('end', "(" .(21 - (max(1, min(20, ($5 - $4)))))*5 . "%)"."\n", 'yellow');
 	   }
 	   else {
-	       $resists -> insert('end', "\n");
+	       $YW{resists} -> insert('end', "\n");
 	   }
 	   
 	   if (exists($SR{$1})) {
@@ -832,13 +765,15 @@ sub parse_log_file {
        }
 
        if (/^(.+) : Spell Resistance : \*(defeated|success)\* : (.+)$/) {
-           $resists -> insert('end',$_, 'lightblue');
+	   # attacker beat our SR
+           #$YW{resists} -> insert('end',$_, 'lightblue');
+	   $YW{resists} -> insert('end', "SR *$2* $3: $1\n", 'lightblue');
 	   next;
        }
 
        # Turning
        if (/^(.+) : Turn (Outsider|Construct|Vermin|Undead) : \*(success|failure)\* : \((\d+) \+ (\d+) .+ vs. TR: (\d+)\)$/) {
-	   $resists -> insert('end', "Turn $2: $1 : *$3* : ($4 + $5 = " . ($4 + $5) . " vs. SR: $6 (" . (21 - (max(1, min(20, ($6 - $5)))))*5 . '%)'."\n", 'lightblue');
+	   $YW{resists} -> insert('end', "Turn $2: $1 : *$3* : ($4 + $5 = " . ($4 + $5) . " vs. SR: $6 (" . (21 - (max(1, min(20, ($6 - $5)))))*5 . '%)'."\n", 'lightblue');
 	   
 	   if (exists($TR{$1})) {
 	       $TR{$1} = $5 if ($6>$TR{$1});
@@ -864,7 +799,7 @@ sub parse_log_file {
 
 	# more output from !list imm
 	if (/^(Spell|Other) immunities:$/) {
-		$parse_sub_mode = "imm$1";
+		$YAL{parseSM} = "imm$1";
 	}
 
 	#
@@ -897,8 +832,8 @@ sub parse_log_file {
 	#if (/^.+\*dispelled\*.+$/){
 	if (/^(.+) : Dispel (.+) : \*dispelled\* :(.+)$/){
 	   	
-	   if ($toon eq $1) {
-			$resists -> insert('end',"Your $2 has been dispelled \n", 'orange');
+	   if ($$RUN{toon} eq $1) {
+			$YW{resists} -> insert('end',"Your $2 has been dispelled \n", 'orange');
 			#print "your $2 dispelled \n";
 			#print $Effecttimers{$2};
 			delete $Effecttimers{$2};
@@ -915,14 +850,14 @@ sub parse_log_file {
 	if (/^\[Server\] Effects on (.+):/) {
 		%Effecttimers = ();
 		
-	    $effectid = $1;
-	    $effectid = $toon if ($1 eq "you");
+	    $YAL{effectId} = $1;
+	    $YAL{effectId} = $$RUN{toon} if ($1 eq "you");
 	    next;
 	}
 
 	if (/^    \#(\d+) (.+) \[(.+)\]/) {
 	    # This only work on yourself atm
-	    $Effects{$effectid}{($2 . " " . $1)} = $3;
+	    $Effects{$YAL{effectId}}{($2 . " " . $1)} = $3;
 	    next;
 	}
 
@@ -945,12 +880,12 @@ sub parse_log_file {
 	next if (/(.+) has (joined|left) as a player\.\./);
 
 	# area specific lines - for now only hells
-	# TODO: if ($current_area =~ /^Hells/)
+	# TODO: if ($$RUN{cArea} =~ /^Hells/)
 	next if parse_line_area_Hells();
 
         # Yay!
         if (/You are flooded with an incredible sense of well-being!/) {           
-	    $saves -> insert('end',$_, 'yellow');
+	    $YW{saves} -> insert('end',$_, 'yellow');
 	    $shamelessadvertising = 1;
             next;
         }
@@ -963,9 +898,9 @@ sub parse_log_file {
 	#
 	# Starting hell run
 	# 
-	if (/\Q$toon\E: Send me to (Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/) {
+	if (/\Q$$RUN{toon}\E: Send me to (Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/) {
 	    if ($OPTIONS{"hellentrymessagebox"}==1) {
-		my $clear_stats = $mw->messageBox(-message => "Clear stats?",
+		my $clear_stats = $YW{mw}->messageBox(-message => "Clear stats?",
 						  -title => "Entering hells",
 						   -type => "yesno", -icon => "question");		
 		if ($clear_stats eq "Yes") {
@@ -982,7 +917,10 @@ sub parse_log_file {
 
 	# TODO: some more things we could catch and display in info area
 	# if (/You are in Higher Ground Enhanced Mode./)
-	# if (/Latest Module Build: 2009-07-27/)
+	if (/^Latest Module Build: (.*)\s*/) {
+	    $YW{l_mod_date}->configure(-text=>"Mod.Build: $1");
+	    next;
+	}
 	if ($time && s/^\[Server\] //) {
 	    parse_srv_msg($_);
 	    next;
@@ -993,24 +931,93 @@ sub parse_log_file {
     }
 
     if ($OPTIONS{"fixscroll"} == 1) {
-	$resists->see('end');
-	$saves->see('end');
-	$hits_out->see('end');
-	$hits_inc->see('end');
-	$damage_out->see('end');
-	$damage_inc->see('end');
+	$YW{resists}->see('end');
+	$YW{saves}->see('end');
+	$YW{hits_out}->see('end');
+	$YW{hits_inc}->see('end');
+	$YW{damage_out}->see('end');
+	$YW{damage_inc}->see('end');
     }
 
     # Always scroll to bottom if the window was at bottom before. Bugs under windows?    
-    $resists->see('end') if $endresists == 1;
-    $saves->see('end')  if $endsaves == 1;
-    $hits_out->see('end') if $endhitout == 1;
-    $hits_inc->see('end') if $endhitinc == 1;
-    $damage_out->see('end') if $enddmgout == 1;
-    $damage_inc->see('end') if $enddmginc == 1;
+    $YW{resists}->see('end') if $endresists == 1;
+    $YW{saves}->see('end')  if $endsaves == 1;
+    $YW{hits_out}->see('end') if $endhitout == 1;
+    $YW{hits_inc}->see('end') if $endhitinc == 1;
+    $YW{damage_out}->see('end') if $enddmgout == 1;
+    $YW{damage_inc}->see('end') if $enddmginc == 1;
 
     # Check if it's time to change log files
     check_log_file();
+}
+
+# saves and ability checks
+sub parse_checks_and_saves {
+
+    # ability checks
+    if (/^(.+) : (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) vs. (.+) : \*(success|failure|success not possible)\* : (.+ vs\. DC: (\d+).)/) {
+	$AbilityChecks{$3}{$2} = $6;
+	#$YW{saves} -> insert('end',$_, 'lightblue');
+#print "ability check for [$1]\n" if ($1 ne $$RUN{toon});
+	$YW{saves} -> insert('end', "STAT $2 *$4* $5 vs. $3\n", 'lightblue');
+	return 1;
+    }
+
+    #if (/^(.+) : (Will|Fortitude|Reflex) Save : /) {
+    if (/^(.+?)( : .+)? : (Will|Fortitude|Reflex) Save : \*(.*)\* : (.*)/) {
+	if ($1 eq $$RUN{toon}) {
+	    $YW{saves} -> insert('end', "SAVE $3 *$4* $5".($2 // '')."\n", 'white');
+	} else {
+	    $YW{saves} -> insert('end',$_, 'white');
+	}
+	return 1;
+    }
+
+    #if (/^(.+) : (Will|Fortitude|Reflex) Save vs. (.+) : \*(success|failure)\* : \(\d+ \+ (\d+) = \d+ vs\. DC: (\d+)\)$/) {
+    if (/^(.+?)( : .+)? : (Will|Fortitude|Reflex) Save vs. (.+) : \*(success|failure)\* : (\(\d+ \+ (\d+) = \d+ vs\. DC: (\d+)\))$/) {
+	if ($$RUN{toon} eq $1) {
+	    #$YW{saves} -> insert('end',$_, 'white');
+	    $YW{saves} -> insert('end', "SAVE $3 vs. $4 *$5* $6".($2 // '')."\n", 'white');
+	}
+	else {
+	    chomp;
+	    $YW{saves} -> insert('end',$_, 'lightblue');
+	    if ($OPTIONS{"dcpercent"}==1) {
+		#$YW{saves} -> insert('end', " (" .((max(1, min(20, (($6-1) - $5)))))*5 . "%)"."\n", 'yellow');
+		$YW{saves} -> insert('end', " (" .((max(1, min(20, (($8-1) - $7)))))*5 . "%)"."\n", 'yellow');
+	    } else {
+		$YW{saves} -> insert('end',"\n");
+	    }
+	}
+	#$Saves{$1}{$2}{"min"}{$3} = $5 if (!exists($Saves{$1}{$2}{"min"}{$3}));
+	#$Saves{$1}{$2}{"max"}{$3} = $5 if (!exists($Saves{$1}{$2}{"max"}{$3}));
+	#$Saves{$1}{$2}{"min"}{$3} = $5 if $5 < $Saves{$1}{$2}{"min"}{$3};
+	#$Saves{$1}{$2}{"max"}{$3} = $5 if $5 > $Saves{$1}{$2}{"max"}{$3};
+	$Saves{$1}{$3}{"min"}{$4} = $7 if (!exists($Saves{$1}{$3}{"min"}{$4}) || ($7 < $Saves{$1}{$3}{"min"}{$4}));
+	$Saves{$1}{$3}{"max"}{$4} = $7 if (!exists($Saves{$1}{$3}{"max"}{$4}) || ($7 > $Saves{$1}{$3}{"max"}{$4}));
+#print "save: n='$1', s='$3', ?='$4', v='$7'\n";
+	return 1;
+    }
+
+    #if (/^(.+) : (Discipline|Concentration|Taunt|Bluff) vs. (.+) : \*(success|failure|success not possible)\* : .+ vs\. DC: (\d+)/) {
+    if (/^(.+) : (Discipline|Concentration|Taunt|Bluff)( vs. (.+))? : \*(success|failure|success not possible)\* : (.+ vs\. DC: (\d+).)/) {
+	# TODO: rework collecting saves and stuff
+	$SkillChecks{$3}{$2} = $7 if $3; #$5;
+	if ($$RUN{toon} eq $1) {
+	    #$YW{saves} -> insert('end',$_, 'white');
+	    $YW{saves} -> insert('end', "SKILL $2 *$5* $6".($3 // '')."\n", 'white');
+	} else {
+	    $YW{saves} -> insert('end',$_, 'lightblue');
+	}
+	return 1;
+    }
+
+    # Skills
+    if (/^(.+) : (.+) vs\. (.+) : \*(success|failure)\* : /) {
+	# if ($1 eq $$RUN{toon})
+	$YW{saves} -> insert('end',$_, 'yellow');
+	return 1;
+    }
 }
 
 # chat log
@@ -1027,15 +1034,15 @@ sub parse_chat_line {
 	    s/<\/c.*?>//g;
 	    if (/\[Guild\]/) {
 		s/^.*\[Tell\] //;
-		$chatlog->insert('end', $_, 'purple');
+		$YW{t_chatlog}->insert('end', $_, 'purple');
 	    }
 	    elsif (($speakername =~ /^\s*$/) && /Interserver (\w+) message from (.*) \((.*)\): (.*)/) {
 		my %channelcolors = ('newbie' => 'darkgray', 'bazaar' => 'red');
-		$chatlog->insert('end', "$2 ($3)");
-		$chatlog->insert('end', "[".ucfirst($1)."]: $4\n", $channelcolors{$1});
+		$YW{t_chatlog}->insert('end', "$2 ($3)");
+		$YW{t_chatlog}->insert('end', "[".ucfirst($1)."]: $4\n", $channelcolors{$1});
 	    }
 	    else {
-		$chatlog->insert('end', $_, 'green');
+		$YW{t_chatlog}->insert('end', $_, 'green');
 	    }
 
 	}
@@ -1043,19 +1050,19 @@ sub parse_chat_line {
 	    if (($speakername eq 'SERVER') && /Run forming on( this)? server( \d+)?\. Contact (.*) \((.*)\) if interested: (.*)/) {
 		my ($toon, $player, $srv, $msg) = ($3, $4, $2 // '', $5);
 		$srv =~ s/^ /@/ if $srv;
-		$chatlog->insert('end', "$toon ($player)$srv");
-		$chatlog->insert('end', "[RUN]: $msg\n", 'orange');
+		$YW{t_chatlog}->insert('end', "$toon ($player)$srv");
+		$YW{t_chatlog}->insert('end', "[RUN]: $msg\n", 'orange');
 	    } else {
-		$chatlog->insert('end', $_, 'yellow');		
+		$YW{t_chatlog}->insert('end', $_, 'yellow');		
 	    }
 	}
 	else {
-	    $chatlog->insert('end', $_);
+	    $YW{t_chatlog}->insert('end', $_);
 	    # Remember to code this person as a potential party member if in party talk
 	    #to be taken out when list of players is defined
 	    $listofplayers{$speakername} = 1 if (/\[Party\]/);
 	}
-	$chatlog->see('end');
+	$YW{t_chatlog}->see('end');
 	return 1;
     }
 
@@ -1086,7 +1093,10 @@ sub parse_combat_line {
 	    my %damage_type = ();
 	    while ($damages =~ s/(\d+) (\S+)\s*//) {
 			my ($damount, $dtype) = ($1, $2);
-			# TODO: if ($heals{$dtype}) ...
+			if ($heals && ($dtype =~ /^(Pos|Neg)/)) {
+			    $dtype = $1; # to match with data from hgdata.xml
+			    # TODO: if ($heals{$dtype}) ...
+			}
 			$damage_type{$dtype} = $damount;
 			$DamageTypesDealt{$attacker}{$dtype} = 1 if ($meleehit==1);
 	#		print "Setting $attacker $dtype $DamageTypesDealt{$attacker}{$dtype}\n";		
@@ -1095,13 +1105,13 @@ sub parse_combat_line {
 	    
 	    # General data was saved above
 		# Now we should handle the specific damage data that is shown on the GUI
-	    return 1 unless ($attacker eq $toon || $defender eq $toon);
+	    return 1 unless ($attacker eq $$RUN{toon} || $defender eq $$RUN{toon});
 	    
-	    if ($toon eq $attacker) {
-			append_dmg_line($damage_out, $total, \%damage_type, $defender, $heals);
+	    if ($$RUN{toon} eq $attacker) {
+			append_dmg_line($YW{damage_out}, $total, \%damage_type, $defender, $heals);
 	    }
 	    else {
-			append_dmg_line($damage_inc, $total, \%damage_type, $attacker, 0);
+			append_dmg_line($YW{damage_inc}, $total, \%damage_type, $attacker, 0);
 	    }
 	    return 1;
 	}
@@ -1145,26 +1155,26 @@ sub parse_combat_line {
 		$Kills{$1}{$2}++;
 
 		# Start death timer if it was the toon that died and clear effects timers
-		if ($2 eq $toon) {
-			$deaths++;
-			$lastkiller = $1;
+		if ($2 eq $$RUN{toon}) {
+			$$RUN{deaths}++; #$deaths++;
+			$$RUN{lastKiller} = $1;
 			%Effecttimers = ();
 		} 
 		if (exists($party{$2})) {
 			# Start a death timer if it was a party member who died
-			push(@{$timers{300}}, $2) unless $current_map && !$HGmaps->{$current_map}{'respawn'};
+			push(@{$timers{300}}, $2); # unless $$RUN{cMap} && !$HGmaps->{$$RUN{cMap}}{'respawn'};
 		}
 		else {
 			# Check if the monster was a paragon
-			$totalmobkills++;
+			$$RUN{totalmobkills}++;
 			my $pl = hg_para_level($2);
-			$paracount{$pl}++ if ($pl);
+			$$RUN{paracount}{$pl}++ if ($pl);
 		}
 
 		# Hmm. Still counting this separately for the player. That is not necessary. Should be integrated with the general hash
-		if ($toon eq $1) {
-			$kills++;
-			$lastkilled = $2;
+		if ($$RUN{toon} eq $1) {
+			$$RUN{kills}++; #$kills++;
+			$$RUN{lastKilled} = $2;
 		}
 
 		return 1;
@@ -1172,7 +1182,7 @@ sub parse_combat_line {
 
 	# XP
 	if (/^Experience Points Gained:\s+(\d+)$/ ) {
-		$totalxp += $1;
+		$$RUN{totalxp} += $1;
 		return 1;
 	}
 
@@ -1191,41 +1201,41 @@ sub parse_srv_msg {
 	my ($name, $pvp) = ($1, $2);
 	
 	if (exists($HGmaps->{$name})) {
-	    $current_area = $HGmaps->{$name}{'area'} // ''; # default: no area
+	    $$RUN{cArea} = $HGmaps->{$name}{'area'} // ''; # default: no area
 	} else {
 	    $HGmaps->{$name}{'new'} = 1;
-	    $current_area = '';
+	    $$RUN{cArea} = '';
 
 	    my @parts = split(/ - /, $name);
 	    if ($#parts) {
 		if (exists($HGareas->{$parts[0]})) {
-		    $current_area = $parts[0];
+		    $$RUN{cArea} = $parts[0];
 		}
 		elsif ($parts[0] =~ /(Avernus|Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/) {
-		    $current_area = $1;
+		    $$RUN{cArea} = $1;
 		    $HGareas->{$1} = {area => 'Hells', new => 1};
 		}
 	    }
 
-	    if (!$current_area) {
+	    if (!$$RUN{cArea}) {
 		@parts = split(/ /, $parts[0]); # $name);
-		$current_area = $parts[0] if $#parts && exists($HGareas->{$parts[0]});
+		$$RUN{cArea} = $parts[0] if $#parts && exists($HGareas->{$parts[0]});
 	    }
 
-	    $HGmaps->{$name}{'area'} = $current_area;
+	    $HGmaps->{$name}{'area'} = $$RUN{cArea};
 	}
 
-	$current_map = $name;
+	$$RUN{cMap} = $name;
 	# remember pvp-status of map
-	$HGmaps->{$current_map}{'pvp'} = $pvp;
+	$HGmaps->{$name}{'pvp'} = $pvp;
 
 	# which run are we doing?
-	$last_run = $current_area if $current_area;
+	$$RUN{lastRun} = $$RUN{cArea} if $$RUN{cArea};
     }
 
     # area status: fugue/limbo/... ?
     elsif (/^You will (.*) if you respawn in this area\.$/) {
-	$HGmaps->{$current_map}{'respawn'} = $1 if ($current_map);
+	$HGmaps->{$$RUN{cMap}}{'respawn'} = $1 if ($$RUN{cMap});
     }
 
     # update demi count
@@ -1234,7 +1244,7 @@ sub parse_srv_msg {
 
     # switch mode to collecting immunities
     elsif (/^Damage immunities:$/) {
-	$parse_sub_mode = 'imm';
+	$YAL{parseSM} = 'imm';
     }
 
     # !iteminfo
@@ -1255,7 +1265,7 @@ sub parse_srv_msg {
 
     # list of done quests
     #elsif (/^You have the following accomplishments:$/) {
-	#$parse_sub_mode = 'acc'
+	#$YAL{parseSM} = 'acc'
     #}
 
     # !list ac
@@ -1278,23 +1288,22 @@ sub parse_srv_msg {
 # data-lines start with at least 2 blanks
 #
 sub parse_log_submode {
-	if ($parse_sub_mode) {
-		#print "submode parsing: $parse_sub_mode\n";
-		my $fn = "parse_sm_$parse_sub_mode";
-		# print "sub func found: $fn\n" if (defined(&$fn));
-		goto &$fn if (defined(&$fn));
-	}
-	return 0;
+    if ($YAL{parseSM}) {
+	my $fn = "parse_sm_$YAL{parseSM}";
+	#print "sub func found: $fn - $_\n" if (defined(&$fn));
+	goto &$fn if (defined(&$fn));
+    }
+    return 0;
 }
 
 # end of data for a sub-mode parser
 sub parse_sm_end {
-	if ($parse_sub_mode) {
-		#print "submode end: $parse_sub_mode\n";
-		my $fn = "parse_sm_end_$parse_sub_mode";
-		goto &$fn if (defined(&$fn));
-		$parse_sub_mode = '';
-	}
+    if ($YAL{parseSM}) {
+	#print "submode end: $YAL{parseSM}\n";
+	my $fn = "parse_sm_end_$YAL{parseSM}";
+	goto &$fn if (defined(&$fn));
+	$YAL{parseSM} = '';
+    }
 }
 
 #
@@ -1317,26 +1326,26 @@ sub parse_sm_imm {
 
 # collect data for "Other immunities"
 sub parse_sm_immOther {
-	if (/^    ([\w ,]+)/) {
-		my @ilist = split(/, /, $1);
-		$ilist[$#ilist] =~ s/^and // if ($#ilist);
-		# TODO: save imms for display
-		print "other imms: ". join(',', @ilist)."\n";
-	}
-	return 1;
+    if (/^    ([\w ,]+)/) {
+	my @ilist = split(/, /, $1);
+	$ilist[$#ilist] =~ s/^and // if ($#ilist);
+	# TODO: save imms for display
+	print "other imms: ". join(',', @ilist)."\n";
+    }
+    return 1;
 }
 
 # collect data for "Spell immunities"
 sub parse_sm_immSpell {
-	if (/^    Spells of level (\d) and lower/) {
-		print "Spell immunity by level: $1\n";
-	}
-	elsif (/^    ([\w ,]+)/) {
-		my @ilist = split(/, /, $1);
-		$ilist[$#ilist] =~ s/^and // if ($#ilist);
-		# TODO: save imms for display
-	}
-	return 1;
+    if (/^    Spells of level (\d) and lower/) {
+	print "Spell immunity by level: $1\n";
+    }
+    elsif (/^    ([\w ,]+)/) {
+	my @ilist = split(/, /, $1);
+	$ilist[$#ilist] =~ s/^and // if ($#ilist);
+	# TODO: save imms for display
+    }
+    return 1;
 }
 
 #######################################################################
@@ -1347,7 +1356,7 @@ sub parse_collect_metadata {
 	if (/^(.+): PCScry: Select an option$/) {
 		if ($OPTIONS{"catchtoonname"}==1) {
 			new_party_member($1);
-			$toon = $1;
+			$$RUN{toon} = $1;
 		}
 		return 1;
 	}
@@ -1356,40 +1365,40 @@ sub parse_collect_metadata {
 	if (/Welcome to Higher Ground, (.+)!$/) {
 		if ($OPTIONS{"catchtoonname"}==1) {
 			# clear old toon from party if re-login with another toon
-			$party{$toon} = 0 if ($toon and defined $party{$toon});
+			$party{$$RUN{toon}} = 0 if ($$RUN{toon} and defined $party{$$RUN{toon}});
 
 			new_party_member($1);
-			$toon = $1;
+			$$RUN{toon} = $1;
 		}
 		return 1;
 	}
 
 	# !who header - clears party stats
 	if (/^\[Server\] ===== Server (\d+).+$/){
-		$parse_sub_mode = 'who';
+		$YAL{parseSM} = 'who';
 		#%party = ();
-		if ($1 eq $server) {
-			$myserverwho = 1;
-			clear_party() if $catchpartywho; # only if it's a party-who
+		if ($1 eq $$RUN{srvName}) {
+			$YAL{myServerWho} = 1;
+			clear_party() if $YAL{catchPartyWho}; # only if it's a party-who
 		} else {
-			$myserverwho = 0;
-			$catchpartywho = 0;
+			$YAL{myServerWho} = 0;
+			$YAL{catchPartyWho} = 0;
 		}
 		return 1;
 	}
 
 	# On which server are we? - at welcome and end of !who
 	if (/You are on server (\d+)/) {
-	    $server = $1;
-	    $myserverwho = 0; # no !who output to follow immediately after
-	    $catchpartywho = 0;
+	    $$RUN{srvName} = $1;
+	    $YAL{myServerWho} = 0; # no !who output to follow immediately after
+	    $YAL{catchPartyWho} = 0;
 	    return 1;
 	}
 
 	# prepare server uptime display
 	if (/This server has been up for ((\d+) hours, )?(\d+) minutes,? and (\d+) seconds\./) {
-	    $uptime_secs = $4 + 60*$3 + ($2 ? 3600*$2 : 0);
-	    $uptimeat = $srv_time;
+	    $$RUN{srvBaseUptime} = $4 + 60*$3 + ($2 ? 3600*$2 : 0);
+	    $$RUN{srvBaseTS} = $$RUN{srvLogTS};
 	    return 1;
 	}
 
@@ -1408,7 +1417,7 @@ sub parse_collect_metadata {
 
 # Player information from !who commands
 sub parse_sm_who {
-	return 1 if (!$myserverwho); # ignore playerlisting from other servers
+	return 1 if (!$YAL{myServerWho}); # ignore playerlisting from other servers
 	# old if (/^  \s*\[\d+(\/\d+)?\]( \|.+\|)? (.+) $/) {
 	#ills version: if (/^.+\[(\d+ \D\D\D.+?)\] (.+) $/){    
 	if (/^.+\[(\d+ \D\D\D.+?)\] (.+) $/) {
@@ -1431,7 +1440,7 @@ sub parse_sm_who {
 	    
 	    $listofplayers{$toonname} = 0 if (!defined($listofplayers{$toonname}));
 	    #$party{$toonname} = 1;
-	    new_party_member($toonname) if ($catchpartywho);
+	    new_party_member($toonname) if ($YAL{catchPartyWho});
 		if ($debug) {print "$listofplayers{$toonname} \n";}
 		
 #	    print "Found $toonname in this line:>>>$_<<<\n";
@@ -1442,54 +1451,54 @@ sub parse_sm_who {
 #######################################################################
 # collect gear listings
 sub parse_gear_list_header {
-	# From uses of !list contents on a container
+    # From uses of !list contents on a container
 
-	# Loot lines and rarity - skip "Common" and "Uncommon" stuff
-	if (/(.+): (Non-random|Beyond Ultrarare|Ultrarare|Rare) items:/) {
-		# TODO: if ($toon eq $q) ...
-	    $gearcontainer = $1;
-		#if ($parse_sub_mode ne 'gear') {
-	print "reset gearcontainer $gearcontainer\n" if (exists($Gear{$gearcontainer}) && !$next_item_rarity);
-			# Now clear the existing data if that exists
-			$Gear{$gearcontainer} = () if (exists($Gear{$gearcontainer}) && !$next_item_rarity);
-			$parse_sub_mode = 'gear';
-		#}
-		$next_item_rarity = $2; # TODO: use that data
-	}
-	elsif (/\[Server\] Contents of Persistent (Transfer|Storage) Chest:/) {
-	    $gearcontainer = "Bankchest $bankchest";
-		$parse_sub_mode = 'gear';
+    # Loot lines and rarity - skip "Common" and "Uncommon" stuff
+    if (/(.+): (Non-random|Beyond Ultrarare|Ultrarare|Rare) items:/) {
+	# TODO: if ($$RUN{toon} eq $q) ...
+	$YAL{gearcontainer} = $1;
+	#if ($YAL{parseSM} ne 'gear') {
+    print "reset gearcontainer $YAL{gearcontainer}\n" if (exists($Gear{$YAL{gearcontainer}}) && !$YAL{next_item_rarity});
 	    # Now clear the existing data if that exists
-	    $Gear{$gearcontainer} = () if (exists($Gear{$gearcontainer}));
-		$next_item_rarity = ''; # unknown rarity
-	}
-	elsif (/You are now using bank chest '(.+?)'/) {
-	    $bankchest = $1;
-	}
-	elsif (/You are now using your default bank chest/) {
-	    $bankchest = "default";
-	}
-	else {
-		return 0;
-	}
+	    $Gear{$YAL{gearcontainer}} = () if (exists($Gear{$YAL{gearcontainer}}) && !$YAL{next_item_rarity});
+	    $YAL{parseSM} = 'gear';
+	#}
+	$YAL{next_item_rarity} = $2; # TODO: use that data
+    }
+    elsif (/\[Server\] Contents of Persistent (Transfer|Storage) Chest:/) {
+	$YAL{gearcontainer} = "Bankchest $YAL{bankchest}";
+	$YAL{parseSM} = 'gear';
+	# Now clear the existing data if that exists
+	$Gear{$YAL{gearcontainer}} = () if (exists($Gear{$YAL{gearcontainer}}));
+	$YAL{next_item_rarity} = ''; # unknown rarity
+    }
+    elsif (/You are now using bank chest '(.+?)'/) {
+	$YAL{bankchest} = $1;
+    }
+    elsif (/You are now using your default bank chest/) {
+	$YAL{bankchest} = "default";
+    }
+    else {
+	return 0;
+    }
 
-	return 1;
+    return 1;
 }
 
 # collect gear data from "!list inventory" or "!list contents"
 sub parse_sm_gear {
-	if (/^    ([A-Za-z].+)/) {
-	    if ($gearcontainer ne "") {
-			$Gear{$gearcontainer}{$1}++;
-	    }
-		# TODO: if ($next_item_rarity) ...
-	    return 1;
+    if (/^    ([A-Za-z].+)/) {
+	if ($YAL{gearcontainer} ne "") {
+		    $Gear{$YAL{gearcontainer}}{$1}++;
 	}
+	# TODO: if ($YAL{next_item_rarity}) ...
+	return 1;
+    }
 }
 
 sub parse_sm_end_gear {
-	return if ($next_item_rarity && /^\s*$/); # items of other rarity may follow
-	$parse_sub_mode = '';
+    return if ($YAL{next_item_rarity} && /^\s*$/); # items of other rarity may follow
+    $YAL{parseSM} = '';
 }
 
 #######################################################################
@@ -1499,40 +1508,40 @@ sub parse_sm_end_gear {
 # Specific hell comments
 # Not sure what to use those for atm
 sub parse_line_area_Hells {
-	if (/^(Asmodeus stuns you with Malbolge's Strike|The malebranche's wing buffet knocks you to the ground|Asmodeus smites you with Maladomini's Ruin|Asmodeus infects you with Avernan Ague|The brood worm siphons some of your magical energies, and strikes you mute with awe|The erinyes has entangled you|The malebranche performs a whirl, catching you on its blade|The malebranche snatches you up and drops you, but you glide back to the ground|The pit fiend's wing buffet knocks you down|The pit fiend calls down a meteor swarm)!$/) {
-		$saves -> insert('end',$_, 'yellow');
-		return 1;
-	}
-	if (/The Amnizu has stricken you with amnesia!/) {
-	    $saves -> insert('end',$_, 'yellow');
-		# TODO: remember amni until rest
-	    return 1;
-	}
-	if (/^(.+) : Restore Hells Penalties/) {
-		#print "GR: by '$1' @ $server_uptime/$server_round\n";
-		# TODO: start counting rounds
-		return 1;
-	}
+    if (/^(Asmodeus stuns you with Malbolge's Strike|The malebranche's wing buffet knocks you to the ground|Asmodeus smites you with Maladomini's Ruin|Asmodeus infects you with Avernan Ague|The brood worm siphons some of your magical energies, and strikes you mute with awe|The erinyes has entangled you|The malebranche performs a whirl, catching you on its blade|The malebranche snatches you up and drops you, but you glide back to the ground|The pit fiend's wing buffet knocks you down|The pit fiend calls down a meteor swarm)!$/) {
+	$YW{saves} -> insert('end',$_, 'yellow');
+	return 1;
+    }
+    if (/The Amnizu has stricken you with amnesia!/) {
+	$YW{saves} -> insert('end',$_, 'yellow');
+	# TODO: remember amni until rest
+	return 1;
+    }
+    if (/^(.+) : Restore Hells Penalties/) {
+	#print "GR: by '$1' @ $$RUN{srvUptime}/$$RUN{srvRound}\n";
+	# TODO: start counting rounds
+	return 1;
+    }
 
-	return 0;
+    return 0;
 }
 
 # player commands to control YAL
 sub parse_player_cmds {
-	if (/\Q$toon\E: \[Whisper\] \.(.+)/) {
-		my $command = $1;
-		if ($command eq "clear" || $command eq "reset") {
-			reset_all();
-		}
-		elsif ($command eq "pstats") {
-			dialog_party_summary();
-		}
-		elsif ($command eq "who") {
-			$catchpartywho = 1;
-		}
-
-		return 1;
+    if (/\Q$$RUN{toon}\E: \[Whisper\] \.(.+)/) {
+	my $command = $1;
+	if ($command eq "clear" || $command eq "reset") {
+	    reset_all();
 	}
+	elsif ($command eq "pstats") {
+	    dialog_party_summary();
+	}
+	elsif ($command eq "who") {
+	    $YAL{catchPartyWho} = 1;
+	}
+
+	return 1;
+    }
 }
 
 #######################################################################
@@ -1562,7 +1571,7 @@ sub process_attack {
 	    $Crits{$attacker}{$defender}++;		    
 	}
 	
-	$hits++ if ($attacker eq $toon);
+	$$RUN{hits}++ if ($attacker eq $$RUN{toon});
 	if ($roll<20) {
 	    if ((!exists($MinAC{$defender})) || ($ab+$roll < $MinAC{$defender})) {
 		$MinAC{$defender} = $ab+$roll;
@@ -1598,19 +1607,19 @@ sub process_attack {
 	$badtooncounter{$attacker}++ if (hg_do_not_hit($defender));
     }
     
-    if ($toon eq $attacker) {
-	$hitfrequency = ($hitfrequencyweight*$hitfrequency)/($hitfrequencyweight + 1);
+    if ($$RUN{toon} eq $attacker) {
+	$$RUN{hit_frequency} = ($YAL{hit_frequency_weight}*$$RUN{hit_frequency})/($YAL{hit_frequency_weight} + 1);
 	if ($status eq "hit" || $status eq "crit" ) {
-	    $hitfrequency += 1/($hitfrequencyweight + 1);
+	    $$RUN{hit_frequency} += 1/($YAL{hit_frequency_weight} + 1);
 	}
-	append_attack($hits_out, $ab, $roll, $status, $hitfrequency*100, $defender, 'green');
+	append_attack($YW{hits_out}, $ab, $roll, $status, $$RUN{hit_frequency}*100, $defender, 'green');
     }
-    elsif ($toon eq $defender) {
-	$defencefrequency = ($hitfrequencyweight*$defencefrequency)/($hitfrequencyweight + 1);
+    elsif ($$RUN{toon} eq $defender) {
+	$$RUN{defence_frequency} = ($YAL{hit_frequency_weight}*$$RUN{defence_frequency})/($YAL{hit_frequency_weight} + 1);
 	if ($status ne "hit" && $status ne "crit" ) {
-	    $defencefrequency += 1/($hitfrequencyweight + 1);
+	    $$RUN{defence_frequency} += 1/($YAL{hit_frequency_weight} + 1);
 	}
-	append_attack($hits_inc, $ab, $roll, $status, $defencefrequency*100, $attacker, 'red');
+	append_attack($YW{hits_inc}, $ab, $roll, $status, $$RUN{defence_frequency}*100, $attacker, 'red');
     }
 }
 
@@ -1629,7 +1638,7 @@ sub starttimer {
 sub update_effects_timers{
 	
 	#required line for gui
-	$othertimers->delete("1.0", 'end');
+	$YW{othertimers}->delete("1.0", 'end');
 	
 	#Create ordered listing of effect times sorted by time
 	my @sortedEffects = sort {$Effecttimers{$a} <=> $Effecttimers{$b}} keys %Effecttimers;
@@ -1638,15 +1647,17 @@ sub update_effects_timers{
 		#decrement the value on each hash
 		#delete timer if it is 0
 		
-		$Effecttimers{$EffectName} = $Effecttimers{$EffectName} - 1;
-		if ($Effecttimers{$EffectName} eq 0){delete $Effecttimers{$EffectName};}
+		$Effecttimers{$EffectName}--; # = $Effecttimers{$EffectName} - 1;
+		if ($Effecttimers{$EffectName} eq 0) {
+		    delete $Effecttimers{$EffectName};
+		    next;
+		}
 		
-		
-			
 		#format the effect to to window
 		my $etimertext = sprintf "%2d:%02d %s \n", integer_div($Effecttimers{$EffectName}, 60), ($Effecttimers{$EffectName} % 60), $EffectName;
+
 		#place the effect in the window
-		$othertimers -> insert('end', $etimertext);
+		$YW{othertimers} -> insert('end', $etimertext);
 		
 	}
 	@sortedEffects = {};
@@ -1664,7 +1675,7 @@ sub update_effects_timers{
 		#if ($debug){print "$effecttimer \n";}
 	    #my $etimertext = sprintf "%2d:%02d %s \n", integer_div($etime, 60), ($etime % 60), $effecttimer;
 
-		#$othertimers -> insert('end', $etimertext);
+		#$YW{othertimers} -> insert('end', $etimertext);
 
 	#}
 	#end the old way
@@ -1674,8 +1685,8 @@ sub update_effects_timers{
 }
 
 sub update_death_timers {
-    $fuguetimers->delete("1.0", 'end');
-	#$othertimers->delete("1.0", 'end');
+    $YW{fuguetimers}->delete("1.0", 'end');
+	#$YW{othertimers}->delete("1.0", 'end');
 	
     if (exists($timers{0})) {
 	delete($timers{0});
@@ -1683,41 +1694,41 @@ sub update_death_timers {
     foreach my $time (sort {$a <=> $b} keys(%timers)) {	
 	$timers{$time-1} =[@{$timers{$time}}];
 	if ($time<11 && $OPTIONS{"fuguebeep"}) {
-	    $mw -> bell;
+	    $YW{mw} -> bell;
 	}
 	foreach my $player (@{$timers{$time}}) {
 	    my $timertext = sprintf "%2d:%02d %s \n", integer_div($time, 60), ($time % 60), $player;
-	    my $s = ($player eq $toon) ? 'self' : '';
+	    my $s = ($player eq $$RUN{toon}) ? 'self' : '';
 	    if ($time<10) {
-		$fuguetimers -> insert('end', $timertext, "critical$s") ;
+		$YW{fuguetimers} -> insert('end', $timertext, "critical$s") ;
 	    }
 	    elsif ($time<30) {
-		$fuguetimers -> insert('end', $timertext, "critical$s") ;
+		$YW{fuguetimers} -> insert('end', $timertext, "critical$s") ;
 	    }
 	    elsif ($time<60) {
-		$fuguetimers -> insert('end', $timertext, "warning$s"); 
+		$YW{fuguetimers} -> insert('end', $timertext, "warning$s"); 
 	    }
 	    else {
-		$fuguetimers -> insert('end', $timertext, $s);
+		$YW{fuguetimers} -> insert('end', $timertext, $s);
 	    }
 	}
 	delete($timers{$time});
     }
 # taken out into effects sectoin
-#    $othertimers = "";
+#    $YW{othertimers} = "";
 #    if (@grtimer) {
 #	shift(@grtimer) if ($grtimer[0]<1);
 #	if (@grtimer) {
 #	  #  $grtimer[0]--;
-	 #   $othertimers .= sprintf "GSanc %2d:%02d", integer_div($grtimer[0], 60), ($grtimer[0] % 60);
+	 #   $YW{othertimers} .= sprintf "GSanc %2d:%02d", integer_div($grtimer[0], 60), ($grtimer[0] % 60);
 #	}
  #   }
 #    if (@gstimer) {
 #	shift(@gstimer) if ($gstimer[0]<1);
 #	if (@gstimer) { 
 #	  #  $gstimer[0]--;
-	  #  $othertimers .= "\n" if (@grtimer);
-	  #  $othertimers .= sprintf "GSmit %2d:%02d", integer_div($gstimer[0], 60), ($gstimer[0] % 60);
+	  #  $YW{othertimers} .= "\n" if (@grtimer);
+	  #  $YW{othertimers} .= sprintf "GSmit %2d:%02d", integer_div($gstimer[0], 60), ($gstimer[0] % 60);
 #	}
  #   }
 }
@@ -1756,24 +1767,24 @@ sub max {
 }
 
 sub inc_logcount {
-    $logfilenumber++; 
-    $logfilenumber = 1 if ($logfilenumber>4);
+    $YAL{logfilenumber}++; 
+    $YAL{logfilenumber} = 1 if ($YAL{logfilenumber}>4);
 
-    $currentlogfile = "nwclientLog". $logfilenumber .".txt";
+    $YAL{currentlogfile} = "nwclientLog". $YAL{logfilenumber} .".txt";
 
     close(LOGFILE);
-    open(LOGFILE, "$currentlogfile");
+    open(LOGFILE, "$YAL{currentlogfile}");
 }
 
 sub print_immunities {
-    $imms -> delete("1.0", 'end');
+    $YW{imms} -> delete("1.0", 'end');
     # Remove physical
     foreach (@DAMAGETYPESIMM) {
 	my $t = $immunities{$_};
 	# TODO: make option if to show resists
 	$t .= '|' . $resists{$_} if ($resists{$_});
-	#$imms -> insert('end',  $immunities{$_}. "\t", "$COLOURS{$_}");
-	$imms -> insert('end',  $t. "\t", "$COLOURS{$_}");  
+	#$YW{imms} -> insert('end',  $immunities{$_}. "\t", "$COLOURS{$_}");
+	$YW{imms} -> insert('end',  $t. "\t", "$COLOURS{$_}");  
     }
 }
 
@@ -1783,14 +1794,14 @@ sub print_immunities {
 #
 sub check_log_file {
     # Find the next logfile name
-    my $nextlogfile = "nwclientLog". ($logfilenumber+1) .".txt";
-    if ($logfilenumber>3) {
+    my $nextlogfile = "nwclientLog". ($YAL{logfilenumber}+1) .".txt";
+    if ($YAL{logfilenumber}>3) {
 	$nextlogfile = "nwclientLog1.txt";	
     }
 
     # Check if the next file exists and if it has a newer timestamp than the current file
     if (-e $nextlogfile) {	
-	inc_logcount() if ((-M $nextlogfile) <= (-M $currentlogfile));
+	return inc_logcount() if ((-M $nextlogfile) <= (-M $YAL{currentlogfile}));
     }
 }
 
@@ -1799,19 +1810,17 @@ sub check_log_file {
 # This hasn't been updated in some time. Probably not resetting everything correctly but then I never use it anyway
 #
 sub reset_all {
-    $deaths = 0;
-    $kills = 0;
-    $totalxp = 0;
-    $lastkilled="";
-    $lastkiller="";
+    $$RUN{deaths} = 0; #$deaths = 0;
+    $$RUN{kills} = 0; #$kills = 0;
+    $$RUN{totalxp} = 0;
+    $$RUN{lastKilled}="";
+    $$RUN{lastKiller}="";
 
     @grtimer = ();
     @gstimer = ();
-    $timertext = "";
-    $other = "";
 
-    $hitfrequency = 0;
-    $defencefrequency = 0;
+    $$RUN{hit_frequency} = 0;
+    $$RUN{defence_frequency} = 0;
 
 
     %kills = ();
@@ -1831,18 +1840,18 @@ sub reset_all {
     %hitpercentage = ();
     
 
-    $damage_inc->delete("1.0", 'end');
-    $damage_out->delete("1.0", 'end');
-    $hits_inc->delete("1.0", 'end');
-    $hits_out->delete("1.0", 'end');   
-    $saves->delete("1.0", 'end');
-    $resists->delete("1.0", 'end');   
+    $YW{damage_inc}->delete("1.0", 'end');
+    $YW{damage_out}->delete("1.0", 'end');
+    $YW{hits_inc}->delete("1.0", 'end');
+    $YW{hits_out}->delete("1.0", 'end');   
+    $YW{saves}->delete("1.0", 'end');
+    $YW{resists}->delete("1.0", 'end');   
 }
 
 
 sub clear_party {
     %party = ();
-    $party{$toon} = 1;    
+    $party{$$RUN{toon}} = 1;    
 }
 
 #
@@ -1858,11 +1867,11 @@ sub dialog_party_entry {
 		my @existingparty = keys(%party);
 		if ($debug) {print "@existingparty \n";
 	}
-	$party_dialog = $mw->Toplevel();
+	$party_dialog = $YW{mw}->Toplevel();
 #	$party_dialog->attributes(-topmost=>1);
 	$party_dialog->title("Party member setup");
 
-	$party_dialog->LabEntry(-textvariable => \$toon,
+	$party_dialog->LabEntry(-textvariable => \$$RUN{toon},
 				-label => "Own character",
 				-labelPack => [qw/-side left -anchor w/]) -> pack();
 
@@ -1870,7 +1879,7 @@ sub dialog_party_entry {
 	    # Fill up the choises with existing party members	    
 	    if (@existingparty) {
 		$_ = shift(@existingparty);
-		$_ = shift(@existingparty) if ($_ eq $toon);
+		$_ = shift(@existingparty) if ($_ eq $$RUN{toon});
 		$pty{$i} = $_;
 	    }
 
@@ -1887,7 +1896,7 @@ sub dialog_party_entry {
 			      -command => sub { $party_dialog->withdraw();
 						$party_dialog->grabRelease();
 						clear_party();
-						new_party_member($toon);
+						new_party_member($$RUN{toon});
 						for (my $i=2; $i<=10; $i++) {
 						    if (defined($pty{$i})) {
 							if ($pty{$i} ne "" && !exists($party{$pty{$i}})) {
@@ -1920,7 +1929,7 @@ sub dialog_party_summary {
     if (!Exists($party_summary)) {
 		my %pty = ();
 
-		$party_summary = $mw->Toplevel();
+		$party_summary = $YW{mw}->Toplevel();
 		$party_summary->title("Party summary statistics");
 
 		my $ps_frm = $party_summary->Frame()->pack(-side=>'top');
@@ -1977,7 +1986,7 @@ sub dialog_program_options {
     
     # We only want one copy of this window
     if (!Exists($options_dialog)) {
-	$options_dialog = $mw -> Toplevel();
+	$options_dialog = $YW{mw} -> Toplevel();
 	$options_dialog->title("Options");
 	
 	# Place OK button at bottom
@@ -1992,21 +2001,21 @@ sub dialog_program_options {
         # Fonts
 	my $fontcfg_dmg = $fontsetup -> Frame() -> pack(-side=>'top', -fill=>'x');
         my $fontlist = $fontcfg_dmg->BrowseEntry(-label => "Damage windows", -variable=>\$OPTIONS{"font"}, -labelPack=>[-side=>'top'])->pack(-side=>'left');
-	$fontlist->insert('end', sort $mw->fontFamilies);
+	$fontlist->insert('end', sort $YW{mw}->fontFamilies);
 #	$fontsetup->Label(-text=>"Font size:")->pack();
 	$fontcfg_dmg->Scale( -orient=>'horizontal', -width=>20, -from=>5, -to=>16,
 				-showvalue=>1, -variable=>\$OPTIONS{"fontsize"} )->pack(-side=>'left', -anchor=>'s');
 
 	my $fontcfg_hits = $fontsetup -> Frame() -> pack(-side=>'top', -fill=>'x');
         my $fontlisthit = $fontcfg_hits->BrowseEntry(-label => "Hit windows", -variable=>\$OPTIONS{"font-hit"}, -labelPack=>[-side=>'top']) -> pack(-side=>'left');
-	$fontlisthit->insert('end', sort $mw->fontFamilies);
+	$fontlisthit->insert('end', sort $YW{mw}->fontFamilies);
 	$fontcfg_hits->Scale( -orient=>'horizontal', -width=>20, -from=>5, -to=>16,
 				-showvalue=>1, -variable=>\$OPTIONS{"fontsize-hit"} )->pack(-side=>'left', -anchor=>'s');
 
 
 	my $fontcfg_resist = $fontsetup -> Frame()  -> pack(-side=>'top', -fill=>'x');
         my $fontlistresist = $fontcfg_resist->BrowseEntry(-label => "Resist/saves windows", -variable=>\$OPTIONS{"font-resist"}, -labelPack=>[-side=>'top']) -> pack(-side=>'left');
-	$fontlistresist->insert('end', sort $mw->fontFamilies);
+	$fontlistresist->insert('end', sort $YW{mw}->fontFamilies);
 	$fontcfg_resist->Scale( -orient=>'horizontal', -width=>20, -from=>5, -to=>16,
 				-showvalue=>1, -variable=>\$OPTIONS{"fontsize-resist"} )->pack(-side=>'left', -anchor=>'s');
 
@@ -2015,9 +2024,9 @@ sub dialog_program_options {
 				     -variable => \$OPTIONS{"hitcounter"},
 				     -command => sub { 
 					 if ($OPTIONS{"hitcounter"} == 1) {
-					     $frm_dynamicwindow -> pack(-side=>'bottom', -fill=>'x');
+					     $YW{frm_dynamicwindow} -> pack(-side=>'bottom', -fill=>'x');
 					 } else {
-					     $frm_dynamicwindow -> pack('forget');					     
+					     $YW{frm_dynamicwindow} -> pack('forget');					     
 					 }
 				     }) -> pack(-anchor=>"w");
 	
@@ -2105,7 +2114,7 @@ sub dialog_detailed_summary {
     
     # We only want one copy of this window
     if (!Exists($details_dialog)) {
-	$details_dialog = $mw -> Toplevel();
+	$details_dialog = $YW{mw} -> Toplevel();
 	$details_dialog->title("Detailed summary");
 
 
@@ -2208,25 +2217,26 @@ sub dialog_detailed_summary {
 
 sub dialog_chat_log {
     # We only want one copy of this window
-    if (!Exists($chatlog_dialog)) {
-	$chatlog_dialog = $mw -> Toplevel();
-	$chatlog_dialog->withdraw();
-	$chatlog_dialog->title("Chat summary");
-	$chatlog_dialog->protocol('WM_DELETE_WINDOW' => sub { $chatlog_dialog->withdraw() });  # Capture the destroy icon
+    if (!Exists($YW{dlg_chatlog})) {
+	$YW{dlg_chatlog} = $YW{mw} -> Toplevel();
+	$YW{dlg_chatlog}->withdraw();
+	$YW{dlg_chatlog}->title("Chat summary");
+	$YW{dlg_chatlog}->protocol('WM_DELETE_WINDOW' => sub { $YW{dlg_chatlog}->withdraw() });  # Capture the destroy icon
 
 	
-	$chatlog_dialog->Button(-text => "Ok",
-				-command => sub { $chatlog_dialog->withdraw();
+	$YW{dlg_chatlog}->Button(-text => "Ok",
+				-command => sub { $YW{dlg_chatlog}->withdraw();
 					      }) -> pack(-side=>'bottom');
 	
-	$chatlog = $chatlog_dialog -> Scrolled('Text', -width=>60, -height=>4, 
+	$YW{t_chatlog} = $YW{dlg_chatlog} -> Scrolled('Text', -width=>60, -height=>4, 
 					       -foreground=>'white', -background=>'black',
 					       -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}],
-					       -scrollbars=>'e', -wrap=>'word') -> pack(-side=>'top', -fill=>'both', -expand=>1);       	
+					       -scrollbars=>'e', -wrap=>'word', -spacing1=>2
+						) -> pack(-side=>'top', -fill=>'both', -expand=>1);       	
     }
     else {
-	$chatlog_dialog->deiconify();
-	$chatlog_dialog->raise();	
+	$YW{dlg_chatlog}->deiconify();
+	$YW{dlg_chatlog}->raise();	
     }
 }
 
@@ -2236,7 +2246,7 @@ sub dialog_effects {
 
     # We only want one copy of this window
     if (!Exists($effectsdialog)) {
-	$effectsdialog = $mw -> Toplevel();
+	$effectsdialog = $YW{mw} -> Toplevel();
 	$effectsdialog->title("Summary of effects");
 
 	my $whichtoon;
@@ -2289,7 +2299,7 @@ sub dialog_effects {
 
 
 sub html_summary {
-    my $file = $mw->getSaveFile(-initialfile=> 'lastrun.html',
+    my $file = $YW{mw}->getSaveFile(-initialfile=> 'lastrun.html',
 				-filetypes=>[['HTML files', '.html'],
 					     ['All Files', '*']],
 				-defaultextension => '.html');
@@ -2351,13 +2361,13 @@ sub html_summary {
 	}
 	print SAVEFILE "</table>";
 	
-	if ($totalmobkills>0) { 
-	    my $numberofparagons = (exists($paracount{1}) ? $paracount{1} : 0) + (exists($paracount{2}) ? $paracount{2} : 0) + (exists($paracount{3}) ? $paracount{3} : 0);
-	    print SAVEFILE "<p title=\"Percentage of killed monsters that were paragons\">Paragon percentage: " . int($numberofparagons/$totalmobkills *1000)/10 . "% ";
+	if ($$RUN{totalmobkills}>0) { 
+	    my $numberofparagons = (exists($$RUN{paracount}{1}) ? $$RUN{paracount}{1} : 0) + (exists($$RUN{paracount}{2}) ? $$RUN{paracount}{2} : 0) + (exists($$RUN{paracount}{3}) ? $$RUN{paracount}{3} : 0);
+	    print SAVEFILE "<p title=\"Percentage of killed monsters that were paragons\">Paragon percentage: " . int($numberofparagons/$$RUN{totalmobkills} *1000)/10 . "% ";
 	    if ($numberofparagons>0) {
-		print SAVEFILE "(" . (exists($paracount{1}) ? $paracount{1} : 0);
-		print SAVEFILE "/" . (exists($paracount{2}) ? $paracount{2} : 0) . "/";
-		print SAVEFILE (exists($paracount{3}) ? $paracount{3} : 0) . ")";		
+		print SAVEFILE "(" . (exists($$RUN{paracount}{1}) ? $$RUN{paracount}{1} : 0);
+		print SAVEFILE "/" . (exists($$RUN{paracount}{2}) ? $$RUN{paracount}{2} : 0) . "/";
+		print SAVEFILE (exists($$RUN{paracount}{3}) ? $$RUN{paracount}{3} : 0) . ")";		
 	    }
 	}
 
@@ -2509,7 +2519,7 @@ sub html_summary {
 
 
 sub save_inventories {
-    my $file = $mw->getSaveFile(-initialfile=> 'gear.html',
+    my $file = $YW{mw}->getSaveFile(-initialfile=> 'gear.html',
 				-filetypes=>[['HTML files', '.html'],
 					     ['ASCII files', '.txt'],
 					     ['All Files', '*']],
@@ -2569,57 +2579,121 @@ sub save_inventories {
     }    
 }
 
+######################################################################
 
-
+# management of runs
 
 sub runlog_start {
     my $fname = shift;
-    $current_save_file = $fname // $mw->getSaveFile(-initialfile=> 'lastrun.txt',
+    $YAL{save_to_file} = $fname // $YW{mw}->getSaveFile(-initialfile=> 'lastrun.txt',
 				-filetypes=>[['Text files', '.txt'],
 					     ['All Files', '*']],
 				-defaultextension => '.txt');
     
-    if (defined($current_save_file)) {
-	open(SAVEFILE, ">$current_save_file");
+    if (defined($YAL{save_to_file})) {
+	open(SAVEFILE, ">$YAL{save_to_file}");
 
 	# Change the menubuttons so start run is disabled
-	$menu_file->entryconfigure('End run', -state=>'normal');
-	$menu_file->entryconfigure('Start a run', -state=>'disabled');
+	$YW{menu_file}->entryconfigure('End run', -state=>'normal');
+	$YW{menu_file}->entryconfigure('Start a run', -state=>'disabled');
 
-	$saverunbuffer = "";
-	$log_start_ts = $srv_time if $srv_time; # update timestamp for run-start
+	$YAL{saverunbuffer} = "";
+	$$RUN{logFirstTS} = $$RUN{srvLogTS} if $$RUN{srvLogTS}; # update timestamp for run-start
 
 	# Initiate a timer that saves the data to the file.
-	$savefiletimer = $mw->repeat(10000 => \&runlog_save_buffer);	
+	$YAL{savefiletimer} = $YW{mw}->repeat(10000 => \&runlog_save_buffer);	
+
+	$currentRun{savefile} = $YAL{save_to_file};
+    } else {
+	delete $currentRun{savefile};
     }
 }
 
 sub runlog_end {
     runlog_save_buffer();
     close(SAVEFILE);
-    $menu_file->entryconfigure('End run', -state=>'disabled');
-    $menu_file->entryconfigure('Start a run', -state=>'normal');
-    $savefiletimer->cancel;
-    undef($saverunbuffer);
+    $YW{menu_file}->entryconfigure('End run', -state=>'disabled');
+    $YW{menu_file}->entryconfigure('Start a run', -state=>'normal');
+    $YAL{savefiletimer}->cancel;
+    undef($YAL{saverunbuffer});
     if ($OPTIONS{'autostartrun'}) {
-	my $tofile = $mw->getSaveFile(
+	my $tofile = $YW{mw}->getSaveFile(
 	    -title => 'Save run-log as ...',
-	    -initialfile=> time2str("%Y%m%d_%H%M_", $log_start_ts) . ($last_run || 'HG') . '.txt',
+	    -initialfile=> time2str("%Y%m%d_%H%M_", $$RUN{logFirstTS}) . ($$RUN{lastRun} || $$RUN{toon} || 'HG') . '.txt',
 	    -filetypes=>[['Text files', '.txt'],
 			 ['All Files', '*']],
 	    -defaultextension => '.txt'
 	);
-	if ($tofile && ($tofile ne $current_save_file)) {
-	    copy($current_save_file, $tofile) or print "\nERROR\ncannot copy run-file\n\n";
+	if ($tofile && ($tofile ne $YAL{save_to_file})) {
+	    copy($YAL{save_to_file}, $tofile) or print "\nERROR\ncannot copy run-file\n\n";
+	    #hg_run_copy($tofile);
 	}
     }
-    $current_save_file = '';
+    $YAL{save_to_file} = '';
 }
 
 
 sub runlog_save_buffer {
-    print SAVEFILE  $saverunbuffer;
-    $saverunbuffer="";
+    print SAVEFILE $YAL{saverunbuffer};
+    $YAL{saverunbuffer}="";
+}
+
+sub hg_run_init {
+    %emptyRun = (
+	data => {},
+	name => 'current',
+	toon => '', # name of our current toon
+	player => '', # our login-name
+	toonlist => {}, # toons - potential party members
+	partylist => {}, # current party members
+	# combat data
+	damIn => 0, # damage done to party members
+	damOut => 0, # damage done by party members
+	deaths => 0, # nrof deaths of our toon
+	kills => 0, # nrof kills of our toon
+	paracount => {}, # Number of paragon hell monsters
+	totalmobkills => 0, # total number of mobs killed (by party?)
+	hits => 0, # our own toon hits a mob
+	lastKilled => '', # last kill of our toon
+	lastKiller => '', # last killer of our toon
+	hit_frequency => 0,
+	defence_frequency => 0,
+	# where are we
+	srvName => '', # server name (number) we are currently on
+	srvUptime => 0, # current uptime in seconds
+	srvRound => 0, # every 6 seconds a new round.
+	srvLogTS => 0, # timestamp read from logfile
+	srvBaseUptime => 0, # uptime read from greeting
+	srvBaseTS => 0, # at which time (from log) did we catch the uptime msg
+	logFirstTS => 0, # first timestamp we've seen in the log
+	movements => [], # waypoints
+	cMap => '', # current map
+	cArea => '', # current area
+	lastRun => '', # which non-ignore area == run were we last in?
+	totalxp => 0,
+    );
+}
+
+sub hg_run_reset {
+    my ($k, $v);
+    while (($k, $v) = each (%currentRun)) {
+	next if !$v; # value already false, nothing to reset
+	if (defined($emptyRun{$k})) {
+	    my $t = ref $emptyRun{$k};
+	    if ($t) {
+		if ($t eq 'HASH') { $currentRun{$k} = {}; }
+		elsif ($t eq 'ARRAY') { $currentRun{$k} = []; }
+		# TODO: else we have a scalar-ref
+	    } else { # we have a scalar
+		$currentRun{$k} = $emptyRun{$k};
+	    }
+	} else {
+	    # not in blueprint - remove and shout
+	    print "deleting run prop '$k'\n";
+	    delete $currentRun{$k};
+	}
+    }
+    $runData = $$RUN{data}; # run data of individual actors (mobs or party members)}
 }
 
 #
@@ -2627,7 +2701,7 @@ sub runlog_save_buffer {
 #
 sub partymember {
     my $id = shift @_;
-    return 1 if (exists($deaths{$id}) || $id eq $toon);
+    return 1 if (exists($deaths{$id}) || $id eq $$RUN{toon});
     return 0;
 }
 
@@ -2663,28 +2737,28 @@ sub toon_kills {
 
 sub configure_fonts {
     foreach my $colour (@COLS) {
-	$damage_out->tagConfigure($colour, -foreground => "$colour",
+	$YW{damage_out}->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]);
-	$damage_out->tagConfigure($colour.'Heal', -background => "$colour", foreground => 'black');
-	$damage_inc->tagConfigure($colour, -foreground => "$colour",
+	$YW{damage_out}->tagConfigure($colour.'Heal', -background => "$colour", foreground => 'black');
+	$YW{damage_inc}->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]);
-	$imms->tagConfigure($colour, -foreground => "$colour",
+	$YW{imms}->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font"}, -size => 9]);
-	$dmgheader_out->tagConfigure($colour, -foreground => "$colour",
+	$YW{dmgheader_out}->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]);
-	$dmgheader_inc->tagConfigure($colour, -foreground => "$colour",
+	$YW{dmgheader_inc}->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]);
-	$hits_inc->tagConfigure($colour, -foreground => "$colour",
+	$YW{hits_inc}->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}]);
-	$hits_out->tagConfigure($colour, -foreground => "$colour",
+	$YW{hits_out}->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}]);
-	$saves->tagConfigure($colour,
+	$YW{saves}->tagConfigure($colour,
 				  -font=>[-family=>$OPTIONS{"font-resist"}, -size=>$OPTIONS{"fontsize-resist"}]);
-	$resists->tagConfigure($colour,
+	$YW{resists}->tagConfigure($colour,
 				  -font=>[-family=>$OPTIONS{"font-resist"}, -size=>$OPTIONS{"fontsize-resist"}]);
-	$chatlog->tagConfigure($colour, -foreground=>"$colour");
+	$YW{t_chatlog}->tagConfigure($colour, -foreground=>"$colour");
 
-	$top_info_area->tagConfigure($colour, -foreground=>"$colour");
+	$YW{top_info_area}->tagConfigure($colour, -foreground=>"$colour");
     } 
 }
 
@@ -2718,28 +2792,28 @@ sub calculate_vulnerabilities {
 
 
 sub parse_old_log_file {
-    my $file = $mw->getOpenFile(-initialfile=> 'oldlogfile.txt',
+    my $file = $YW{mw}->getOpenFile(-initialfile=> 'oldlogfile.txt',
 				-filetypes=>[['Text files', '.txt'],
 					     ['All Files', '*']],
 				-defaultextension => '.txt');
     
     if (defined($file)) {
 	# Halt the automatic parsing
-	$parsetimer->cancel;
-	my $originalfile = $currentlogfile;
+	$YAL{parsetimer}->cancel;
+	my $originalfile = $YAL{currentlogfile};
 	my $location = tell(LOGFILE);
 
-	$currentlogfile = $file;
+	$YAL{currentlogfile} = $file;
 	open (LOGFILE, $file);
 	parse_log_file();
 	close(LOGFILE);
 	
-	$currentlogfile = $originalfile;
-	open (LOGFILE, $currentlogfile);
+	$YAL{currentlogfile} = $originalfile;
+	open (LOGFILE, $YAL{currentlogfile});
 	seek(LOGFILE, $location, 0);
 
 	# Restart the original parser
-	$parsetimer = $mw->repeat($parsetime => \&parse_log_file);
+	$YAL{parsetimer} = $YW{mw}->repeat($YAL{parsetime} => \&parse_log_file);
     }
 }
 
@@ -2750,10 +2824,10 @@ sub parse_old_log_file {
 #
 
 sub save_configuration {
-    open(CFGFILE, ">$cfgfile") || die "Could not create configuration file";
+    open(CFGFILE, ">$YAL{cfgfile}") || die "Could not create configuration file";
 
     # Get the current layout
-    $OPTIONS{"geometry"} = $mw->geometry();
+    $OPTIONS{"geometry"} = $YW{mw}->geometry();
 
     foreach $_ (sort keys(%OPTIONS)) {
         print CFGFILE "$_=$OPTIONS{$_}\n";	
@@ -2761,7 +2835,7 @@ sub save_configuration {
     close(CFGFILE);
 
     if ($OPTIONS{'autostartrun'}) {
-	if (!$current_save_file && ($currentlogfile =~ /^nwclientLog[1-4]\.txt$]/)) {
+	if (!$YAL{save_to_file} && ($YAL{currentlogfile} =~ /^nwclientLog[1-4]\.txt$/)) {
 	    print "autostart run\n";
 	    runlog_start('currentrun.txt');
 	}
@@ -2770,8 +2844,8 @@ sub save_configuration {
 
 
 sub load_configuration {
-    if (-e $cfgfile) {
-        open(CFGFILE, "$cfgfile") || die "Could not open configuration file";
+    if (-e $YAL{cfgfile}) {
+        open(CFGFILE, "$YAL{cfgfile}") || die "Could not open configuration file";
         while (<CFGFILE>) {
 	    chomp;
 	    s/#.*//;
@@ -2792,7 +2866,7 @@ sub load_configuration {
         $OPTIONS{"fontsize-resist"} = 9 if ($OPTIONS{"fontsize-resist"}) >16;
 
 	# geometry
-	$mw->geometry($OPTIONS{"geometry"}) if ($OPTIONS{"geometry"} ne "");
+	$YW{mw}->geometry($OPTIONS{"geometry"}) if ($OPTIONS{"geometry"} ne "");
     }
 }
 
@@ -2803,17 +2877,17 @@ sub update_info_area {
     for my $opt (@{$options}) {
 	$widget->insert('end', " |", $def_color) if $i++;
 	if ($opt eq 'server') {
-	    $widget->insert('end', " Srv $server", $def_color);
-	    if ($uptime_secs) {
-		$widget->insert('end', ' up '.time2str("%R", $server_uptime, 0), $def_color); # TODO: change color with uptime
+	    $widget->insert('end', " Srv $$RUN{srvName}", $def_color);
+	    if ($$RUN{srvBaseUptime}) {
+		$widget->insert('end', ' up '.time2str("%R", $$RUN{srvUptime}, 0), $def_color); # TODO: change color with uptime
 	    }
 	}
 	elsif ($opt eq 'area') {
-	    $widget->insert('end', " $last_run:", $def_color) if $last_run;
-	    if ($current_map) { # TODO: && $OPTIONS{'show_area_info'}
-		$widget->insert('end', " $current_map", $def_color);
-		if ($HGmaps->{$current_map}{'respawn'}) {
-		    $widget->insert('end', ' '.$HGmaps->{$current_map}{'respawn'}, 'red');
+	    $widget->insert('end', " $$RUN{lastRun}:", $def_color) if $$RUN{lastRun};
+	    if ($$RUN{cMap}) { # TODO: && $OPTIONS{'show_area_info'}
+		$widget->insert('end', " $$RUN{cMap}", $def_color);
+		if ($HGmaps->{$$RUN{cMap}}{'respawn'}) {
+		    $widget->insert('end', ' '.$HGmaps->{$$RUN{cMap}}{'respawn'}, 'red');
 		}
 	    }
 	}
@@ -2821,7 +2895,7 @@ sub update_info_area {
 }
 
 sub update_top_info_area {
-    update_info_area($top_info_area, ['server', 'area'], '');
+    update_info_area($YW{top_info_area}, ['server', 'area'], '');
 }
 
 #
@@ -2958,6 +3032,32 @@ sub append_dmg_line {
 	}
 
 	append_monster($widget, $mob);
+}
+
+######################################################################
+## Initialization ...
+
+sub yal_init {
+    # basic config for YAL, state vars for parsing
+    %YAL = (
+	cfgfile => 'yal.cfg',
+	logfilenumber => 1,
+	currentlogfile => 'nwclientLog1.txt',
+	parsetime => 3000, # reparse log every 3 seconds
+	statusmessage => '', # text for statusbar at the bottom
+	bankchest => 'default',
+	gearcontainer => '',
+	hit_frequency_weight => 30,
+	save_to_file => '', # name of file we're saving the current run to
+	effectId => undef, # Id to keep information about who effect listings concern
+	logfile_info => "?", # info-string about current logfile
+	catchPartyWho => 0, # autofill party when we get player list of our server?
+	myServerWho => 0, # are next items in !who output from our server?
+    );
+
+    hg_run_init();
+    %currentRun = %emptyRun;
+    hg_run_reset();
 }
 
 sub hgdata_import_xml {
