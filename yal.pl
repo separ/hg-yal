@@ -244,241 +244,8 @@ my $col_fire = "Red1";
 my $col_acid = "Green1";
 
 
-#---------------------------------------------------
-#
-#
-# Now comes the GUI setup
-#
-#
-#---------------------------------------------------
-
-# Main Window
-$YW{mw} = new MainWindow();
-$YW{mw} ->title("NWN logger v" .$version . ". --- by Claus Ekstrom 2008. Edits by Illandous & Separ");
-
-#
-# Now define the main frames/areas of the GUI
-# The GUI is split into 3 areas: a panel on the rhs and the "main" bit which is split into an upper and lower panel
-#
-$YW{frm_top} = $YW{mw} -> Frame();
-$YW{frm_bottom} = $YW{mw} -> Frame(-label=>"Spell/turning resists and saves");
-$YW{frm_menu} = $YW{mw} -> Frame(-relief=>'raised', -borderwidth=>2)  -> pack(-side=>'top', -fill=>'x');
-
-
-# Set up the menu bar
-$YW{menu_view} = $YW{frm_menu} -> Menubutton(-text=>'View', 
-					   -underline=>0,
-					   -tearoff => 'no',
-					   -menuitems => [['command' => "Party ~summary",
-							   -command => \&dialog_party_summary],
-							  ['command' => "~Detailed overview",
-							   -command => \&dialog_detailed_summary],
-							  ['command' => "~Effects",
-							   -command => \&dialog_effects],
-							  ['command' => "~Chat log",
-							   -command => \&dialog_chat_log],
-							  ]) -> pack(-side=>'left');
-
-$YW{menu_party} = $YW{frm_menu} -> Menubutton(-text=>'Party',
-					 -underline=>0,
-					 -tearoff => 'no',
-					 -menuitems => [['command' => "~Party setup",
-							 -command=>\&dialog_party_entry],
-							['command' => "~Clear party",
-							 -command=>\&clear_party]]) -> pack(-side=>'left');
-
-
-$YW{menu_options} = $YW{frm_menu} -> Menubutton(-text=>'Options', 
-					   -underline=>0,
-					   -tearoff => 'no',
-					   -menuitems => [['command' => "~Preferences", 
-							   -command => \&dialog_program_options],
-							  [Separator => ''],
-							  ['command' => "~Reset all stats", 
-							   -command => \&yal_reset_all]]) -> pack(-side=>'left');
-
-$YW{menu_file} = $YW{frm_menu} -> Menubutton(-text=>'File', 
-					-underline=>0,
-					-tearoff => 'no',
-					-menuitems => [['command' => "Save ~HTML summary",
-							-command => \&yal_save_summary_html],
-						       [Separator => ''],
-							['command' => "~Start a run",
-							 -command => \&runlog_start],
-						       ['command' => "E~nd run",
-							 -command => \&runlog_end,
-							 -state => 'disabled'],
-						       ['command' => "~Parse old log file", 
-							-command => \&parse_old_log_file],
-						       ['command' => "Save ~inventories", 
-							-command => \&yal_save_inventories]
-						       ]) -> pack(-side=>'left');
-
-$YW{l_mod_date} = $YW{frm_menu} -> Label(-text=>'Mod.Build: ?') -> pack(-side=>'right');
-
-## Top info frame: name, current server, uptime, logfile info
-$YW{frm_info} = $YW{frm_top} -> Frame();
-$YW{frm_info} -> pack(-side=>'top', -anchor=>'w', -fill=>'x');
-$YW{frm_name} = $YW{frm_info} -> Frame() ->pack(-side=>'top');
-$YW{toon_name} = $YW{frm_info} -> LabEntry(-textvariable => \$$RUN{toon},
-				    -label => "Name",
-				    -labelPack => [-side => 'left']) -> pack(-side=>'left');
-$YW{newlog} = $YW{frm_info} -> Button(-text => "Next", -command =>\&yal_inc_logcount, -padx => 3, -pady => 1)->pack(-side=>"right");
-$YW{frm_logfile} = $YW{frm_info} -> Frame() ->pack(-side=>'top');
-$YW{logfile_text} = $YW{frm_info} -> LabEntry(-textvariable => \$YAL{logfile_info},
-				    -label => "Log:",
-				    #-width => 5, # increase if we want to show seconds
-				    -state => 'disabled', -disabledforeground => 'black',
-				    -labelPack => [-side => 'left']) -> pack(-side=>'right');
-$YW{top_info_area} = $YW{frm_info} -> Text(-width=>60, -height=>1, 
-				    -foreground=>'white', -background=>'black',
-				    -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}])->pack(-side=>"top", -fill=>"x", -expand=>0);
-
-
-## Fugue timers
-$YW{frm_rightbar} = $YW{mw} -> Frame();
-$YW{frm_killdeath} = $YW{frm_rightbar} -> Frame(-relief=>'groove', -borderwidth=>2, -background=>"black") -> pack(-side=>'bottom', -fill=>'x');
-$YW{frm_othertimers} = $YW{frm_rightbar} -> Frame(-label=>"Timers", -relief=>'groove', -borderwidth=>2, -background=>"black") -> pack(-side=>'bottom', -fill=>'x');
-$YW{othertimers} = $YW{frm_othertimers} -> Scrolled('Text', -width=>17, -height=>8, 
-				       -foreground=>'white', -background=>'black',
-				       -scrollbars=>'s', -wrap=>'none', -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]) -> pack(-side=>'bottom', -fill=>'both', -expand=>1);
-$YW{othertimers}->tagConfigure("none", -foreground => "red");
-$YW{othertimers}->tagConfigure("dispelled", -foreground => "orange");
-$YW{othertimers}->tagConfigure("casting", -foreground => "blue");
-
-$YW{frm_dynamicwindow} = $YW{frm_rightbar} -> Frame(-label=>"Hit Counter", -relief=>'groove', -borderwidth=>2);
-$YW{frm_dynamicwindow} -> Label(-textvariable => \$$RUN{hits}, -foreground=>$col_cold, -background=>"black") ->pack(-fill =>'x');
-
-$YW{frm_dynamicdamageheaders} = $YW{frm_rightbar} -> Frame(-label=>"Hit Counter", -relief=>'groove', -borderwidth=>2);
-$YW{frm_dynamicdamageheaders} -> Label(-textvariable => \$$RUN{hits}, -foreground=>$col_cold, -background=>"black") ->pack(-fill =>'x');
-
-$YW{frm_fugue} = $YW{frm_rightbar} -> Frame(-label=>"Fugue timers", -relief=>'groove', -borderwidth=>2) -> pack(-side=>'top', -fill=>'both', -expand=>1);
-
-$YW{fuguetimers} = $YW{frm_fugue}->Scrolled('Text', -width=>17, -height=>10, 
-				       -foreground=>'white', -background=>'black',
-				       -scrollbars=>'s', -wrap=>'none', -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]) -> pack(-side=>'top', -fill=>'both', -expand=>1);
-
-$YW{fuguetimers}->tagConfigure("critical", -foreground => "red");
-$YW{fuguetimers}->tagConfigure("warning", -foreground => "pink");
-# use other colors for our own toon so we better see it
-$YW{fuguetimers}->tagConfigure("self", -foreground => "yellow");
-$YW{fuguetimers}->tagConfigure("criticalself", -foreground => "black", -background => 'red');
-$YW{fuguetimers}->tagConfigure("warningself", -foreground => "red");
-
-#start ills hacking                                                                       _______________
-
-
-## Character status
-$YW{frm_char} = $YW{mw} -> Frame(-relief=>'ridge', -borderwidth=>2);
-
-$YW{frm_kills} = $YW{frm_killdeath} -> Frame(-relief=>'groove', -borderwidth=>2, -background=>"black") -> pack(-side=>'top', -fill=>'x');
-$YW{frm_deaths} = $YW{frm_killdeath} -> Frame(-relief=>'groove', -borderwidth=>2) -> pack(-side=>'top', -fill=>'x');
-
-$YW{frm_kills} -> Label(-textvariable => \$$RUN{lastKilled}, -foreground=>"white", -background=>"black") ->pack(-side=>'bottom', -fill=>'x');
-$YW{frm_kills} -> Label(-text => 'Kills: ', -foreground=>$col_acid, -background=>"black") ->pack(-side=>'left');
-$YW{frm_kills} -> Label(-textvariable => \$$RUN{kills}, -foreground=>$col_acid, -background=>"black") ->pack();
-
-$YW{frm_deaths} -> Label(-textvariable => \$$RUN{lastKiller}) ->pack(-side=>'bottom', -fill=>'x');
-$YW{frm_deaths} -> Label(-text => 'Deaths: ', -foreground=>$col_fire) ->pack(-side=>'left');
-$YW{frm_deaths} -> Label(-textvariable => \$$RUN{deaths}, -foreground=>$col_fire) ->pack();
-
-
-$YW{conceal_lab} = $YW{frm_char} -> Label(-text => "Conceal");
-
-$YW{saves} = $YW{frm_bottom} -> Scrolled('Text', -width=>60, -height=>4, 
-				      -foreground=>'white', -background=>'black',
-				      -font => [-family => $OPTIONS{"font-resist"}, -size=>$OPTIONS{"fontsize-resist"}],
-				      -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'right', -fill=>'both', -expand=>1);
-$YW{resists} = $YW{frm_bottom} -> Scrolled('Text', -width=>60, -height=>4, 
-				      -foreground=>'white', -background=>'black',
-				      -font => [-family => $OPTIONS{"font-resist"}, -size=>$OPTIONS{"fontsize-resist"}],
-				      -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'right', -fill=>'both', -expand=>1);
-
-
-$YW{resists}->tagConfigure("darkgray", -foreground => "darkgray");
-$YW{resists}->tagConfigure("lightblue", -foreground => "lightblue");
-$YW{resists}->tagConfigure("yellow", -foreground => "yellow");
-$YW{resists}->tagConfigure("red", -foreground => "red");
-$YW{resists}->tagConfigure("green", -foreground => "green");
-$YW{othertimers}->tagConfigure("casts", -foreground => "orange");
-$YW{saves}->tagConfigure("lightblue", -foreground => "lightblue");
-$YW{saves}->tagConfigure("yellow", -foreground => "yellow");
-
-
-#$resist -> Subwidget("text") -> tagConfigure("darkgray", -foreground => "darkgrey");
-
-#
-# Make a dummy label
-#
-$YW{frm_inc} = $YW{frm_top} -> Frame(-label => "Incoming damage:") -> pack(-side=>"top", -anchor=>"w", -fill=>"both", -expand=>1);
-$YW{frm_out} = $YW{frm_top} -> Frame(-label => "Outgoing damage:") -> pack(-side=>"top", -anchor=>"w", -fill=>"both", -expand=>1);
-
-$YW{hits_inc} = $YW{frm_inc} -> Scrolled('Text', -width=>35, -height=>6, 
-				      -foreground=>'white', -background=>'black',
-				      -tabs => [$OPTIONS{"fontsize-hit"}*5], # screen distance sucks on my laptop -tabs => [qw/.3i/],
-				      -font => [-family => $OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}],
-				      -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'left', -fill=>"both", -expand=>1);
-
-$YW{frm_inc_header} = $YW{frm_inc} -> Frame() -> pack(-side=>'right', -fill=>"both", -expand=>1);
-
-$YW{dmgheader_inc} = $YW{frm_inc_header} -> Text(-width=>60, -height=>1, 
-				      -foreground=>'white', -background=>'black',
-				      -tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
-				      -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}])->pack(-side=>"top", -fill=>"x", -expand=>0);
-
-$YW{damage_inc} = $YW{frm_inc_header} -> Scrolled('Text', -width=>60, -height=>6, 
-				      -foreground=>'white', -background=>'black',
-				      -tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
-				      -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}],
-			              -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'top', -fill=>"both", -expand=>1);
-
-$YW{hits_out} = $YW{frm_out} -> Scrolled('Text', -width=>35, -height=>6, 
-				      -foreground=>'white', -background=>'black',
-				      -tabs => [$OPTIONS{"fontsize-hit"}*5], # screen distance sucks on my laptop -tabs => [qw/.3i/],
-				      -font => [-family => $OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}],
-				      -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'left', -fill=>'both', -expand=>1);
-
-$YW{frm_out_header} = $YW{frm_out} -> Frame() -> pack(-side=>'right', -fill=>"both", -expand=>1);
-$YW{dmgheader_out} = $YW{frm_out_header} -> Text(-width=>60, -height=>1, 
-				      -background=>'black',
-				      -tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
-				      -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}])->pack(-side=>"top", -fill=>"x", -expand=>0);
-
-$YW{damage_out} = $YW{frm_out_header} -> Scrolled('Text', -width=>60, -height=>6, 
-				      -foreground=>'white', -background=>'black',
-				      -tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
-				      -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}],
-			              -scrollbars=>'e', -wrap=>'none') -> pack(-side=>'top', -fill=>"both", -expand=>1);
-
-# Now insert the headers _if_ the headers are desired
-$YW{dmgheader_inc} -> insert('end', "Tot\t", "white");
-$YW{dmgheader_out} -> insert('end', "Tot\t", "white");
-foreach $_ (@DAMAGETYPES) {
-    $YW{dmgheader_inc} -> insert('end',  substr($_,0,3) . "\t",  "$COLOURS{$_}");
-    $YW{dmgheader_out} -> insert('end',  substr($_,0,3) . "\t",  "$COLOURS{$_}");
-}
-
-
-
-##
-$YW{frm_status} = $YW{mw} -> Frame();
-$YW{bt_show_imms} = $YW{frm_status} -> Button(-text => "Show", -padx => 3, -pady => 0) -> pack(-side => "right");
-# logfile info moved to top right
-#my $YW{newlog}     = $YW{frm_status} -> Button(-text => "New Log File", -command =>\&yal_inc_logcount)->pack(-side=>"right");
-$YW{imms} = $YW{frm_status} -> Text(-background=>"black", -height=>1, width=>70, -tabs => [qw/.23i/],
-				     -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]) -> pack(-side=>"right");
-$YW{l_status_msg} = $YW{frm_status} -> Label(-textvariable => \$YAL{statusmessage}, -borderwidth=>2, -relief=>'groove', -anchor=>"w") ->pack(-side=>"left", -fill => 'x', -expand=>1);
-
-
-##
-## Geometry management
-##
-$YW{frm_status} -> pack(-side=>'bottom', -anchor=>'w', -fill=>'x');
-$YW{frm_rightbar}  -> pack(-side=>"right", -fill => 'y', -anchor=>'n');
-$YW{frm_top} -> pack(-side=>'top', -expand=>1, -fill => 'both');
-$YW{frm_bottom} -> pack(-side=>'top', -expand=>1, -fill => 'both');
-
-
+# initialize the gui
+gui_init();
 
 $YAL{parsetimer} = $YW{mw}->repeat($YAL{parsetime} => \&parse_log_file);
 # This is really a poor mans version of the timers. A potential problem is the time NWN takes to write stuff to the log - espcially on network drives
@@ -490,14 +257,6 @@ $YAL{rpEffectsTimers} = $YW{mw}->repeat(1000 => \&update_effects_timers);
 # Make sure that the party selection page is listed when the program starts
 #
 # $YW{mw}->after(1 => \&dialog_party_entry);
-
-
-
-#
-#
-# Done with GUI setup
-#
-#
 
 #------------------------------------------------
 # 
@@ -2795,6 +2554,331 @@ sub yal_load_config {
 	$YW{mw}->geometry($OPTIONS{"geometry"}) if ($OPTIONS{"geometry"} ne "");
     }
 }
+
+#---------------------------------------------------
+#
+# Now comes the GUI setup
+#
+#---------------------------------------------------
+
+# initialize main gui
+sub gui_init {
+    # Main Window
+    $YW{mw} = new MainWindow();
+    $YW{mw} -> title("NWN logger v" .$version . ". --- by Claus Ekstrom 2008. Edits by Illandous & Separ");
+
+    # Set up the menu bar
+    $YW{frm_menu} = gui_init_menu($YW{mw});
+    $YW{frm_menu} -> pack(-side=>'top', -fill=>'x');
+
+    #
+    # Now define the main frames/areas of the GUI
+    # The GUI is split into 3 areas: a panel on the rhs and the "main" bit which is split into an upper and lower panel
+    #
+    $YW{frm_top} = gui_init_area_top($YW{mw});
+    $YW{frm_bottom} = gui_init_area_bottom($YW{mw});
+    $YW{frm_rightbar} = gui_init_sidebar($YW{mw});
+
+    ## Character status
+    #$YW{frm_char} = $YW{mw} -> Frame(-relief=>'ridge', -borderwidth=>2);
+    #$YW{conceal_lab} = $YW{frm_char} -> Label(-text => "Conceal");
+
+    # and a statusbar at the bottom
+    $YW{frm_status} = gui_init_statusbar($YW{mw});
+
+    ##
+    ## Geometry management
+    ##
+    $YW{frm_status} -> pack(-side=>'bottom', -anchor=>'w', -fill=>'x');
+    $YW{frm_rightbar} -> pack(-side=>"right", -fill => 'y', -anchor=>'n');
+    $YW{frm_top} -> pack(-side=>'top', -expand=>1, -fill => 'both');
+    $YW{frm_bottom} -> pack(-side=>'top', -expand=>1, -fill => 'both');
+}
+
+# Set up the menu bar
+sub gui_init_menu {
+    my $ctWidget = shift;
+    my $mb = $ctWidget -> Frame(-relief=>'raised', -borderwidth=>2);
+
+    $YW{menu_view} = $mb -> Menubutton(
+	-text=>'View',
+	-underline=>0,
+	-tearoff => 'no',
+	-menuitems => [
+	    ['command' => "Party ~summary", -command => \&dialog_party_summary],
+	    ['command' => "~Detailed overview", -command => \&dialog_detailed_summary],
+	    ['command' => "~Effects", -command => \&dialog_effects],
+	    ['command' => "~Chat log", -command => \&dialog_chat_log],
+	]
+    ) -> pack(-side=>'left');
+
+    $YW{menu_party} = $mb -> Menubutton(
+	-text=>'Party',
+	-underline=>0,
+	-tearoff => 'no',
+	-menuitems => [
+	    ['command' => "~Party setup", -command=>\&dialog_party_entry],
+	    ['command' => "~Clear party", -command=>\&clear_party],
+	]
+    ) -> pack(-side=>'left');
+
+    $YW{menu_options} = $mb -> Menubutton(
+	-text=>'Options',
+	-underline=>0,
+	-tearoff => 'no',
+	-menuitems => [
+	    ['command' => "~Preferences", -command => \&dialog_program_options],
+	    [Separator => ''],
+	    ['command' => "~Reset all stats", -command => \&yal_reset_all],
+	]
+    ) -> pack(-side=>'left');
+
+    $YW{menu_file} = $mb -> Menubutton(
+	-text=>'File',
+	-underline=>0,
+	-tearoff => 'no',
+	-menuitems => [
+	    ['command' => "Save ~HTML summary", -command => \&yal_save_summary_html],
+	    [Separator => ''],
+	    ['command' => "~Start a run", -command => \&runlog_start],
+	    ['command' => "E~nd run", -command => \&runlog_end, -state => 'disabled'],
+	    ['command' => "~Parse old log file", -command => \&parse_old_log_file],
+	    ['command' => "Save ~inventories", -command => \&yal_save_inventories],
+	]
+    ) -> pack(-side=>'left');
+
+    $YW{l_mod_date} = $mb -> Label(-text=>'Mod.Build: ?') -> pack(-side=>'right');
+
+    return $mb;
+}
+
+# top-area: contains ingoing and outgoing hit- and damage-info
+sub gui_init_area_top {
+    my $ctWidget = shift;
+    my $frmTop = $ctWidget -> Frame();
+
+    gui_init_top_infobar($frmTop);
+    $YW{frm_info} -> pack(-side=>'top', -anchor=>'w', -fill=>'x');
+
+    gui_init_area_hits_and_damage($frmTop);
+
+    return $frmTop;
+}
+
+sub gui_init_top_infobar {
+    my $ctWidget = shift;
+
+    ## Top info frame: name, current server, uptime, logfile info
+    $YW{frm_info} = $ctWidget -> Frame();
+    $YW{frm_name} = $YW{frm_info} -> Frame() ->pack(-side=>'top');
+    $YW{toon_name} = $YW{frm_info} -> LabEntry(
+	-textvariable => \$$RUN{toon},
+	-label => "Name",
+	-labelPack => [-side => 'left']
+    ) -> pack(-side=>'left');
+    $YW{newlog} = $YW{frm_info} -> Button(
+	-text => "Next", -command =>\&yal_inc_logcount, -padx => 3, -pady => 1
+    ) -> pack(-side=>"right");
+    $YW{frm_logfile} = $YW{frm_info} -> Frame() -> pack(-side=>'top');
+    $YW{logfile_text} = $YW{frm_info} -> LabEntry(
+	-textvariable => \$YAL{logfile_info},
+	-label => "Log:",
+	#-width => 5, # increase if we want to show seconds
+	-state => 'disabled', -disabledforeground => 'black',
+	-labelPack => [-side => 'left']
+    ) -> pack(-side=>'right');
+    $YW{top_info_area} = $YW{frm_info} -> Text(
+	-width=>60, -height=>1,
+	-foreground=>'white', -background=>'black',
+	-font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]
+    ) -> pack(-side=>"top", -fill=>"x", -expand=>0);
+}
+
+#
+# hit- and damage frames
+#
+sub gui_init_area_hits_and_damage {
+    my $ctWidget = shift;
+
+    $YW{frm_inc} = $ctWidget -> Frame(-label => "Incoming damage:")
+	-> pack(-side=>"top", -anchor=>"w", -fill=>"both", -expand=>1);
+    $YW{frm_out} = $ctWidget -> Frame(-label => "Outgoing damage:")
+	-> pack(-side=>"top", -anchor=>"w", -fill=>"both", -expand=>1);
+
+    $YW{hits_inc} = $YW{frm_inc} -> Scrolled('Text',
+	-width=>35, -height=>6,
+	-foreground=>'white', -background=>'black',
+	-tabs => [$OPTIONS{"fontsize-hit"}*5], # screen distance sucks on my laptop -tabs => [qw/.3i/],
+	-font => [-family => $OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}],
+	-scrollbars=>'e', -wrap=>'none'
+    ) -> pack(-side=>'left', -fill=>"both", -expand=>1);
+
+    $YW{frm_inc_header} = $YW{frm_inc} -> Frame() -> pack(-side=>'right', -fill=>"both", -expand=>1);
+
+    $YW{dmgheader_inc} = $YW{frm_inc_header} -> Text(
+	-width=>60, -height=>1,
+	-foreground=>'white', -background=>'black',
+	-tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
+	-font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]
+    ) -> pack(-side=>"top", -fill=>"x", -expand=>0);
+
+    $YW{damage_inc} = $YW{frm_inc_header} -> Scrolled('Text',
+	-width=>60, -height=>6,
+	-foreground=>'white', -background=>'black',
+	-tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
+	-font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}],
+	-scrollbars=>'e', -wrap=>'none'
+    ) -> pack(-side=>'top', -fill=>"both", -expand=>1);
+
+    $YW{hits_out} = $YW{frm_out} -> Scrolled('Text',
+	-width=>35, -height=>6,
+	-foreground=>'white', -background=>'black',
+	-tabs => [$OPTIONS{"fontsize-hit"}*5], # screen distance sucks on my laptop -tabs => [qw/.3i/],
+	-font => [-family => $OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}],
+	-scrollbars=>'e', -wrap=>'none'
+    ) -> pack(-side=>'left', -fill=>'both', -expand=>1);
+
+    $YW{frm_out_header} = $YW{frm_out} -> Frame() -> pack(-side=>'right', -fill=>"both", -expand=>1);
+    $YW{dmgheader_out} = $YW{frm_out_header} -> Text(
+	-width=>60, -height=>1,
+	-background=>'black',
+	-tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
+	-font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]
+    ) -> pack(-side=>"top", -fill=>"x", -expand=>0);
+
+    $YW{damage_out} = $YW{frm_out_header} -> Scrolled('Text',
+	-width=>60, -height=>6,
+	-foreground=>'white', -background=>'black',
+	-tabs => [$OPTIONS{"fontsize"}*3.5], # screen distance sucks on my laptop -tabs => [qw/.35i/],
+	-font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}],
+	-scrollbars=>'e', -wrap=>'none'
+    ) -> pack(-side=>'top', -fill=>"both", -expand=>1);
+
+    # Now insert the headers _if_ the headers are desired
+    $YW{dmgheader_inc} -> insert('end', "Tot\t", "white");
+    $YW{dmgheader_out} -> insert('end', "Tot\t", "white");
+    foreach $_ (@DAMAGETYPES) {
+	$YW{dmgheader_inc} -> insert('end',  substr($_,0,3) . "\t",  "$COLOURS{$_}");
+	$YW{dmgheader_out} -> insert('end',  substr($_,0,3) . "\t",  "$COLOURS{$_}");
+    }
+}
+
+sub gui_init_sidebar {
+    my $ctWidget = shift;
+    my $sb = $ctWidget -> Frame();
+
+    # info about our toon's kills and deaths
+    $YW{frm_killdeath} = $sb -> Frame(
+	-relief=>'groove', -borderwidth=>2, -background=>"black"
+    ) -> pack(-side=>'bottom', -fill=>'x');
+
+    $YW{frm_kills} = $YW{frm_killdeath} -> Frame(-relief=>'groove', -borderwidth=>2, -background=>"black") -> pack(-side=>'top', -fill=>'x');
+    $YW{frm_deaths} = $YW{frm_killdeath} -> Frame(-relief=>'groove', -borderwidth=>2) -> pack(-side=>'top', -fill=>'x');
+
+    $YW{frm_kills} -> Label(-textvariable => \$$RUN{lastKilled}, -foreground=>"white", -background=>"black") ->pack(-side=>'bottom', -fill=>'x');
+    $YW{frm_kills} -> Label(-text => 'Kills: ', -foreground=>$col_acid, -background=>"black") ->pack(-side=>'left');
+    $YW{frm_kills} -> Label(-textvariable => \$$RUN{kills}, -foreground=>$col_acid, -background=>"black") ->pack();
+
+    $YW{frm_deaths} -> Label(-textvariable => \$$RUN{lastKiller}) ->pack(-side=>'bottom', -fill=>'x');
+    $YW{frm_deaths} -> Label(-text => 'Deaths: ', -foreground=>$col_fire) ->pack(-side=>'left');
+    $YW{frm_deaths} -> Label(-textvariable => \$$RUN{deaths}, -foreground=>$col_fire) ->pack();
+
+    # Effect timers
+    $YW{frm_othertimers} = $sb -> Frame(
+	-label=>"Timers", -relief=>'groove', -borderwidth=>2, -background=>"black"
+    ) -> pack(-side=>'bottom', -fill=>'x');
+
+    $YW{othertimers} = $YW{frm_othertimers} -> Scrolled('Text',
+	-width=>17, -height=>8,
+	-foreground=>'white', -background=>'black',
+	-scrollbars=>'s', -wrap=>'none', -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]
+    ) -> pack(-side=>'bottom', -fill=>'both', -expand=>1);
+    $YW{othertimers}->tagConfigure("none", -foreground => "red");
+    $YW{othertimers}->tagConfigure("dispelled", -foreground => "orange");
+    $YW{othertimers}->tagConfigure("casting", -foreground => "blue");
+    $YW{othertimers}->tagConfigure("casts", -foreground => "orange");
+
+    # TODO: remove or pack next 2 frages
+    $YW{frm_dynamicwindow} = $sb -> Frame(-label=>"Hit Counter", -relief=>'groove', -borderwidth=>2);
+    $YW{frm_dynamicwindow} -> Label(-textvariable => \$$RUN{hits}, -foreground=>$col_cold, -background=>"black") ->pack(-fill =>'x');
+
+    $YW{frm_dynamicdamageheaders} = $sb -> Frame(-label=>"Hit Counter", -relief=>'groove', -borderwidth=>2);
+    $YW{frm_dynamicdamageheaders} -> Label(-textvariable => \$$RUN{hits}, -foreground=>$col_cold, -background=>"black") ->pack(-fill =>'x');
+
+    ## Fugue timers
+    $YW{frm_fugue} = $sb -> Frame(
+	-label=>"Fugue timers", -relief=>'groove', -borderwidth=>2
+    ) -> pack(-side=>'top', -fill=>'both', -expand=>1);
+
+    $YW{fuguetimers} = $YW{frm_fugue}->Scrolled('Text',
+	-width=>17, -height=>10,
+	-foreground=>'white', -background=>'black',
+	-scrollbars=>'s', -wrap=>'none', -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]
+    ) -> pack(-side=>'top', -fill=>'both', -expand=>1);
+
+    $YW{fuguetimers}->tagConfigure("critical", -foreground => "red");
+    $YW{fuguetimers}->tagConfigure("warning", -foreground => "pink");
+    # use other colors for our own toon so we better see it
+    $YW{fuguetimers}->tagConfigure("self", -foreground => "yellow");
+    $YW{fuguetimers}->tagConfigure("criticalself", -foreground => "black", -background => 'red');
+    $YW{fuguetimers}->tagConfigure("warningself", -foreground => "red");
+
+    return $sb;
+}
+
+sub gui_init_area_bottom {
+    my $ctWidget = shift;
+    my $frmBottom = $ctWidget -> Frame(-label=>"Spell/turning resists and saves");
+
+    $YW{saves} = $frmBottom -> Scrolled('Text',
+	-width=>60, -height=>4,
+	-foreground=>'white', -background=>'black',
+	-font => [-family => $OPTIONS{"font-resist"}, -size=>$OPTIONS{"fontsize-resist"}],
+	-scrollbars=>'e', -wrap=>'none'
+    ) -> pack(-side=>'right', -fill=>'both', -expand=>1);
+
+    $YW{saves}->tagConfigure("lightblue", -foreground => "lightblue");
+    $YW{saves}->tagConfigure("yellow", -foreground => "yellow");
+
+    $YW{resists} = $frmBottom -> Scrolled('Text',
+	-width=>60, -height=>4,
+	-foreground=>'white', -background=>'black',
+	-font => [-family => $OPTIONS{"font-resist"}, -size=>$OPTIONS{"fontsize-resist"}],
+	-scrollbars=>'e', -wrap=>'none'
+    ) -> pack(-side=>'right', -fill=>'both', -expand=>1);
+
+    $YW{resists}->tagConfigure("darkgray", -foreground => "darkgray");
+    $YW{resists}->tagConfigure("lightblue", -foreground => "lightblue");
+    $YW{resists}->tagConfigure("yellow", -foreground => "yellow");
+    $YW{resists}->tagConfigure("red", -foreground => "red");
+    $YW{resists}->tagConfigure("green", -foreground => "green");
+
+    #$resist -> Subwidget("text") -> tagConfigure("darkgray", -foreground => "darkgrey");
+
+    return $frmBottom;
+}
+
+sub gui_init_statusbar {
+    my $ctWidget = shift;
+    my $sb = $ctWidget -> Frame();
+
+    $YW{bt_show_imms} = $sb -> Button(-text => "Show", -padx => 3, -pady => 0) -> pack(-side => "right");
+    $YW{imms} = $sb -> Text(
+	-background=>"black", -height=>1, width=>70, -tabs => [qw/.23i/],
+	-font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]
+    ) -> pack(-side=>"right");
+    $YW{l_status_msg} = $sb -> Label(
+	-textvariable => \$YAL{statusmessage}, -borderwidth=>2, -relief=>'groove', -anchor=>"w"
+    ) ->pack(-side=>"left", -fill => 'x', -expand=>1);
+
+    return $sb;
+}
+
+#
+# end of GUI setup functions
+#
+
+######################################################################
 
 sub gui_update_info_area {
     my ($widget, $options, $def_color) = @_;
