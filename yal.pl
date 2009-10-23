@@ -622,30 +622,6 @@ sub parse_log_file {
 	# combat: attack and damage, xp and kills
 	next if parse_combat_line();
 
-	#effects
-	#if (/^    \#(\d+) (.+) \[(.+)\]/) {
-	#ills effects
-	if(/^    \#(\d+) (.+) \[((\d+)[m])?(\d+)[s].+\]/) {
-	    # TODO: move to submode
-	    my $tempetimer = (($4 // 0) * 60) + $5;
-	    my $tempeid=$1;
-	    my $tempename= $2;
-	    #no longer required
-	    #push(@{$etimers{$tempetimer}}, $tempename);
-
-	    #removes the old one if it exists, and then puts the new one in place
-	    if (exists $YAL{effectTimers}{$2}) {
-		delete $YAL{effectTimers}{$2};
-	    }
-
-	    # no need to start timers when parsing an old logfile
-	    if ($YAL{isCurrent}) {
-		$YAL{effectTimers}{$tempename} = $tempetimer;
-		# TODO: only save max if self-cast ? take max from new and old if avail
-		$YAL{effectTimersMax}{$tempename} = $tempetimer;
-	    }
-	}
-
 	# Different timers. Missing a lot of stuff here. Imm force for example
 	# GR
 	if (/^Greater Sanctuary will be available again in 150 seconds/) {
@@ -801,12 +777,8 @@ sub parse_log_file {
 
 	    $YAL{effectId} = $1;
 	    $YAL{effectId} = $$RUN{toon} if ($1 eq "you");
-	    next;
-	}
 
-	if (/^    \#(\d+) (.+) \[(.+)\]/) {
-	    # This only work on yourself atm
-	    $$runData{$YAL{effectId}}{effects}{($2 . " " . $1)} = $3;
+	    $YAL{parseSM} = 'effects';
 	    next;
 	}
 
@@ -1300,6 +1272,30 @@ sub parse_sm_immSpell {
 	# TODO: save imms for display
     }
     return 1;
+}
+
+# collect data for effects
+sub parse_sm_effects {
+    if(/^    \#(\d+) (.+) \[((\d+)m)?(\d+)s.+\]/) {
+	my ($eNumId, $effectName, $eTimeStr) = ($1, $2, "$3$5s");
+	my $eTimeLeft = (($4 // 0) * 60) + $5;
+
+	#removes the old one if it exists, and then puts the new one in place
+	if (exists $YAL{effectTimers}{$effectName}) {
+	    delete $YAL{effectTimers}{$effectName};
+	}
+
+	# no need to start timers when parsing an old logfile
+	if ($YAL{isCurrent}) {
+	    $YAL{effectTimers}{$effectName} = $eTimeLeft;
+	    # TODO: only save max if self-cast ? take max from new and old if avail
+	    $YAL{effectTimersMax}{$effectName} = $eTimeLeft;
+	}
+
+	# This only work on yourself atm
+	$$runData{$YAL{effectId}}{effects}{"$effectName $eNumId"} = $eTimeStr;
+	return 1;
+    }
 }
 
 #######################################################################
