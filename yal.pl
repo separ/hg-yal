@@ -295,13 +295,13 @@ $YW{menu_options} = $YW{frm_menu} -> Menubutton(-text=>'Options',
 							   -command => \&dialog_program_options],
 							  [Separator => ''],
 							  ['command' => "~Reset all stats", 
-							   -command => \&reset_all]]) -> pack(-side=>'left');
+							   -command => \&yal_reset_all]]) -> pack(-side=>'left');
 
 $YW{menu_file} = $YW{frm_menu} -> Menubutton(-text=>'File', 
 					-underline=>0,
 					-tearoff => 'no',
 					-menuitems => [['command' => "Save ~HTML summary",
-							-command => \&html_summary],
+							-command => \&yal_save_summary_html],
 						       [Separator => ''],
 							['command' => "~Start a run",
 							 -command => \&runlog_start],
@@ -311,7 +311,7 @@ $YW{menu_file} = $YW{frm_menu} -> Menubutton(-text=>'File',
 						       ['command' => "~Parse old log file", 
 							-command => \&parse_old_log_file],
 						       ['command' => "Save ~inventories", 
-							-command => \&save_inventories]
+							-command => \&yal_save_inventories]
 						       ]) -> pack(-side=>'left');
 
 $YW{l_mod_date} = $YW{frm_menu} -> Label(-text=>'Mod.Build: ?') -> pack(-side=>'right');
@@ -323,7 +323,7 @@ $YW{frm_name} = $YW{frm_info} -> Frame() ->pack(-side=>'top');
 $YW{toon_name} = $YW{frm_info} -> LabEntry(-textvariable => \$$RUN{toon},
 				    -label => "Name",
 				    -labelPack => [-side => 'left']) -> pack(-side=>'left');
-$YW{newlog} = $YW{frm_info} -> Button(-text => "Next", -command =>\&inc_logcount, -padx => 3, -pady => 1)->pack(-side=>"right");
+$YW{newlog} = $YW{frm_info} -> Button(-text => "Next", -command =>\&yal_inc_logcount, -padx => 3, -pady => 1)->pack(-side=>"right");
 $YW{frm_logfile} = $YW{frm_info} -> Frame() ->pack(-side=>'top');
 $YW{logfile_text} = $YW{frm_info} -> LabEntry(-textvariable => \$YAL{logfile_info},
 				    -label => "Log:",
@@ -464,7 +464,7 @@ foreach $_ (@DAMAGETYPES) {
 $YW{frm_status} = $YW{mw} -> Frame();
 $YW{bt_show_imms} = $YW{frm_status} -> Button(-text => "Show", -padx => 3, -pady => 0) -> pack(-side => "right");
 # logfile info moved to top right
-#my $YW{newlog}     = $YW{frm_status} -> Button(-text => "New Log File", -command =>\&inc_logcount)->pack(-side=>"right");
+#my $YW{newlog}     = $YW{frm_status} -> Button(-text => "New Log File", -command =>\&yal_inc_logcount)->pack(-side=>"right");
 $YW{imms} = $YW{frm_status} -> Text(-background=>"black", -height=>1, width=>70, -tabs => [qw/.23i/],
 				     -font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]) -> pack(-side=>"right");
 $YW{l_status_msg} = $YW{frm_status} -> Label(-textvariable => \$YAL{statusmessage}, -borderwidth=>2, -relief=>'groove', -anchor=>"w") ->pack(-side=>"left", -fill => 'x', -expand=>1);
@@ -505,13 +505,13 @@ $YAL{rpEffectsTimers} = $YW{mw}->repeat(1000 => \&update_effects_timers);
 #
 #------------------------------------------------
 
-load_configuration();
+yal_load_config();
 dialog_chat_log();   # Setup the chat log 
 configure_fonts();   
 
 hgdata_import_xml(); # test ... replace upper call when ready
 
-print_immunities();
+gui_print_immunities();
 if ($OPTIONS{'autostartrun'}) {
     runlog_start('currentrun.txt');
 }
@@ -520,7 +520,7 @@ if ($OPTIONS{'autostartrun'}) {
 open(LOGFILE, "$YAL{currentlogfile}");
 
 MainLoop;
-# save_configuration();
+# yal_save_config();
 close(LOGFILE);
 
 
@@ -546,7 +546,7 @@ sub parse_log_file {
 
     if ($OPTIONS{"showparagons"}==1) {
 	if ($$RUN{totalmobkills}>0) { 
-	    my $numberofparagons = (exists($$RUN{paracount}{1}) ? $$RUN{paracount}{1} : 0) + (exists($$RUN{paracount}{2}) ? $$RUN{paracount}{2} : 0) + (exists($$RUN{paracount}{3}) ? $$RUN{paracount}{3} : 0);
+	    my $numberofparagons = ($$RUN{paracount}{1} // 0) + ($$RUN{paracount}{2} // 0) + ($$RUN{paracount}{3} // 0);
 	    $YAL{statusmessage} .= " | Paragons: " . int($numberofparagons/$$RUN{totalmobkills} *1000)/10 . "%";
 	}
 	else {
@@ -570,7 +570,7 @@ sub parse_log_file {
 
 	if (/^\s*$/) { # skip empty lines
 	    parse_sm_end() if $YAL{parseSM};
-		next;
+	    next;
 	}
 
 	# Remove DOS line shifts if any. Old habit
@@ -594,7 +594,7 @@ sub parse_log_file {
 		if ($$RUN{srvBaseUptime}) {
 		    $$RUN{srvUptime} = $$RUN{srvBaseUptime} + ($$RUN{srvLogTS} - $$RUN{srvBaseTS});
 		    my $current_round = int $$RUN{srvUptime} / 6;
-		    update_top_info_area();
+		    gui_update_top_info_area();
 		    if ($current_round != $$RUN{srvRound}) {
 			# every 6 seconds we have a new round
 			#printf "new round: %d -> %d @ %d - %s\n", $$RUN{srvRound}, $current_round, $$RUN{srvUptime}, time2str("%R", $$RUN{srvUptime}, 0);
@@ -689,7 +689,7 @@ sub parse_log_file {
 	}	
 	next if (/^(.+) casting (.+)$/);
 
-	# Spell penetration
+	# Spell penetration: our toon tried to beats an enemies SR
 	if (/^(.+) : Spell Penetration : \*(success|failure)\* : \((\d+) \+ (\d+) .+ vs. SR: (\d+)\)$/) {
 	    $YW{resists} -> insert('end', "SP: $1 : ", 'lightblue');
 	    if ($2 eq "success") {
@@ -717,8 +717,8 @@ sub parse_log_file {
 	    next;	   
 	}
 
+	# an attacker tries to beat our SR
 	if (/^(.+) : Spell Resistance : \*(defeated|success)\* : (.+)$/) {
-	    # attacker beat our SR
 	    #$YW{resists} -> insert('end',$_, 'lightblue');
 	    $YW{resists} -> insert('end', "SR *$2* $3: $1\n", 'lightblue');
 	    next;
@@ -853,7 +853,7 @@ sub parse_log_file {
 						  -title => "Entering hells",
 						   -type => "yesno", -icon => "question");		
 		if ($clear_stats eq "Yes") {
-		    reset_all();
+		    yal_reset_all();
 		} 
 	    }
 	    next;
@@ -898,7 +898,7 @@ sub parse_log_file {
     $YW{damage_inc}->see('end') if $enddmginc == 1;
 
     # Check if it's time to change log files
-    check_log_file();
+    yal_check_log_file();
 }
 
 # saves and ability checks
@@ -1273,7 +1273,7 @@ sub parse_sm_imm {
 	#print "imm found: '$1'/'$2'/'".($4 // '?')."'\n";
 	$immunities{$1} = $2;
 	$resists{$1} = $4 // '';
-	print_immunities(); # TODO: only once when we have all of them
+	gui_print_immunities(); # TODO: only once when we have all of them
     }
     return 1;
 }
@@ -1476,7 +1476,7 @@ sub parse_player_cmds {
     if (/\Q$$RUN{toon}\E: \[Whisper\] \.(.+)/) {
 	my $command = $1;
 	if ($command eq "clear" || $command eq "reset") {
-	    reset_all();
+	    yal_reset_all();
 	}
 	elsif ($command eq "pstats") {
 	    dialog_party_summary();
@@ -1661,7 +1661,7 @@ sub max {
     return ($a > $b) ? $a : $b;
 }
 
-sub inc_logcount {
+sub yal_inc_logcount {
     $YAL{logfilenumber}++; 
     $YAL{logfilenumber} = 1 if ($YAL{logfilenumber}>4);
 
@@ -1671,7 +1671,7 @@ sub inc_logcount {
     open(LOGFILE, "$YAL{currentlogfile}");
 }
 
-sub print_immunities {
+sub gui_print_immunities {
     $YW{imms} -> delete("1.0", 'end');
     # Remove physical
     foreach (@DAMAGETYPESIMM) {
@@ -1687,7 +1687,7 @@ sub print_immunities {
 #
 # Check if we should update the current log file
 #
-sub check_log_file {
+sub yal_check_log_file {
     # Find the next logfile name
     my $nextlogfile = "nwclientLog". ($YAL{logfilenumber}+1) .".txt";
     if ($YAL{logfilenumber}>3) {
@@ -1696,7 +1696,7 @@ sub check_log_file {
 
     # Check if the next file exists and if it has a newer timestamp than the current file
     if (-e $nextlogfile) {	
-	return inc_logcount() if ((-M $nextlogfile) <= (-M $YAL{currentlogfile}));
+	return yal_inc_logcount() if ((-M $nextlogfile) <= (-M $YAL{currentlogfile}));
     }
 }
 
@@ -1704,7 +1704,7 @@ sub check_log_file {
 #
 # This hasn't been updated in some time. Probably not resetting everything correctly but then I never use it anyway
 #
-sub reset_all {
+sub yal_reset_all {
     $$RUN{deaths} = 0;
     $$RUN{kills} = 0;
     $$RUN{totalxp} = 0;
@@ -1871,7 +1871,7 @@ sub dialog_program_options {
 	# Place OK button at bottom
 	$options_dialog->Button(-text => "Ok",
 				-command => sub { $options_dialog->withdraw();
-						  save_configuration();
+						  yal_save_config();
 						  configure_fonts();
 					      }) -> pack(-side=>'bottom');
 
@@ -2181,7 +2181,7 @@ sub dialog_effects {
 }
 
 
-sub html_summary {
+sub yal_save_summary_html {
     my $file = $YW{mw}->getSaveFile(-initialfile=> 'lastrun.html',
 				-filetypes=>[['HTML files', '.html'],
 					     ['All Files', '*']],
@@ -2404,7 +2404,7 @@ sub html_summary {
 }
 
 
-sub save_inventories {
+sub yal_save_inventories {
     my $file = $YW{mw}->getSaveFile(-initialfile=> 'gear.html',
 				-filetypes=>[['HTML files', '.html'],
 					     ['ASCII files', '.txt'],
@@ -2741,7 +2741,7 @@ sub parse_old_log_file {
 # The following functions deal with saving and loading/validation of the configuration file
 #
 
-sub save_configuration {
+sub yal_save_config {
     open(CFGFILE, ">$YAL{cfgfile}") || die "Could not create configuration file";
 
     # Get the current layout
@@ -2761,7 +2761,7 @@ sub save_configuration {
 }
 
 
-sub load_configuration {
+sub yal_load_config {
     if (-e $YAL{cfgfile}) {
         open(CFGFILE, "$YAL{cfgfile}") || die "Could not open configuration file";
         while (<CFGFILE>) {
@@ -2788,7 +2788,7 @@ sub load_configuration {
     }
 }
 
-sub update_info_area {
+sub gui_update_info_area {
     my ($widget, $options, $def_color) = @_;
     $widget->delete("1.0", 'end');
     my $i = 0;
@@ -2812,8 +2812,8 @@ sub update_info_area {
     }
 }
 
-sub update_top_info_area {
-    update_info_area($YW{top_info_area}, ['server', 'area'], '');
+sub gui_update_top_info_area {
+    gui_update_info_area($YW{top_info_area}, ['server', 'area'], '');
 }
 
 #
