@@ -542,7 +542,7 @@ sub parse_log_file {
 
     # logfile- and run-info is now top-right
     $YAL{logfile_info} = $YAL{currentlogfile} . (defined($YAL{saverunbuffer}) ? ' (RUN)' : '');
-    $YAL{statusmessage} = "Total XP: " . $$RUN{totalxp} . " | Total dmg: " . ($$runData{$$RUN{toon}}{damOut} || "None yet" ) ;
+    $YAL{statusmessage} = "Total XP: " . num_fmt($$RUN{totalxp}) . " | Total dmg: " . (num_fmt($$runData{$$RUN{toon}}{damOut}) || "None yet" ) ;
 
     if ($OPTIONS{"showparagons"}==1) {
 	if ($$RUN{totalmobkills}>0) { 
@@ -1202,6 +1202,10 @@ sub parse_srv_msg {
     #elsif (/^Saving throws:/) {
     #}
 
+    # !list spknown
+    #elsif (/^Your known spells:/) {
+    #}
+
     else {
 	return 0;
     }
@@ -1277,7 +1281,7 @@ sub parse_sm_immSpell {
 # collect data for effects
 sub parse_sm_effects {
     if(/^    \#(\d+) (.+) \[((\d+)m)?(\d+)s.+\]/) {
-	my ($eNumId, $effectName, $eTimeStr) = ($1, $2, "$3$5s");
+	my ($eNumId, $effectName, $eTimeStr) = ($1, $2, ($3 // '')."$5s");
 	my $eTimeLeft = (($4 // 0) * 60) + $5;
 
 	#removes the old one if it exists, and then puts the new one in place
@@ -1657,6 +1661,13 @@ sub max {
     return ($a > $b) ? $a : $b;
 }
 
+# format int number with thousand seperator
+sub num_fmt {
+    my $n = shift;
+    $n =~ s/\d{1,3}(?=(\d{3})+(?!\d))/$&,/g if $n;
+    return $n;
+}
+
 sub yal_inc_logcount {
     $YAL{logfilenumber}++; 
     $YAL{logfilenumber} = 1 if ($YAL{logfilenumber}>4);
@@ -2007,6 +2018,7 @@ sub dialog_detailed_summary {
 				-command => sub { $details_dialog->destroy();
 					      }) -> pack(-side=>'bottom');
 
+	# TODO: add elemental immunities
 	my @headers = ("Name", "AB", "AC range", "Conceal", "Max SR", "Kills", "Deaths", "Immunities", "Deals", "Takes");
 
 	my $grid = $details_dialog->Scrolled('HList',
