@@ -51,15 +51,8 @@ my %currentRun; # data collection for current run
 my $RUN = \%currentRun; # run data (hits, kills, dmg, ...)
 my $runData; # = $$RUN{data}; # run data of individual actors (mobs or party members)}
 
-my $HGdata; # to collect data (saves, ab, ac, ...)
-
+my (%HGdata, $HGmobs, $HGareas, $HGmaps, $HGtoons, $HGnew);
 yal_init();
-
-my %timers = ();   # A hash of arrays
-my %Effecttimers = ();
-my @grtimer = ();
-my @gstimer = ();
-my %damage = ();
 
 my $shamelessadvertising = 0;
 
@@ -68,66 +61,24 @@ my $shamelessadvertising = 0;
 my $debug = 0;
 
 #
-# this is to hold the chat_dialog
-#
-# $YW{dlg_chatlog};
-# $YW{t_chatlog};
-
-#
 # The following hashes keeps most of the information
 #
-my %kills = ();       # Hash of # kills
-my %deaths = ();      # Hash of # deaths
-my %party = ();       # Hash of party members
-my %swings = ();
-my %swingsagainst = ();
-my %hits = ();
-my %crits = ();
-my %dodge = ();
-my %damage_done = ();
-my %damage_taken = ();
-my %damage_takenstr = ();
-my %elemental_immunities = ();
-my %partykiller = ();
-my %partykilled = ();
-my %partyhits = ();
-my %partyattacks = ();
-my %badtooncounter = ();   # Counts the number of attacks on Mammon's tears, infernal machines etc. Purely for pointing the finger at someone
-my %listofplayers = ();
-my %hitpercentage = ();
 
-
-my %Gear = ();
 my %AB = ();
 my %MinAC = ();
 my %MaxAC = ();
-my %immune = ();
-my %conceal = ();
 my %SR = ();
 my %TR = ();
-my %dam_taken_detail = ();
 
 #
 # The following hashes are more detailed and contain information split on attacker and defender. everything should eventually go into those as the program evolves
 #
 my %Saves = ();
-my %TotalDamage = ();
-my %Kills = (); 
-my %Hits = ();
-my %Swings = ();
-my %Crits = ();
-my %Conceals = ();
 my %AbilityChecks = ();
 my %SkillChecks = ();
-my %DamageTypesDealt = ();
-my %Disarm = ();
-my %Effects = ();
-#ills effects
-my %Effecttimers = (); #the key is the name of the effect the value is the duration of the effect
-my %MaxEffecttimers = (); #stores the values from the effects command so when you cast a spell it shows up in your effects
 
 my %DMG_TYPE_ESO = (
-	'Internal' => 1, 'Vile' => 1, 'Sacred' => 1, 'Psionic' => 1, 'Ectoplasmic' => 1
+    'Internal' => 1, 'Vile' => 1, 'Sacred' => 1, 'Psionic' => 1, 'Ectoplasmic' => 1
 );
 my @DAMAGETYPES = ("Physical", "Acid", "Electrical", "Fire", "Cold", "Sonic", "Magical", "Divine", "Positive", "Negative", "Internal", "Vile", "Sacred", "Psionic", "Ectoplasmic");
 my @DAMAGETYPESIMM = ("Bludgeoning", "Piercing", "Slashing", "Acid", "Electrical", "Fire", "Cold", "Sonic", "Magical", "Divine", "Positive", "Negative");
@@ -561,7 +512,6 @@ load_configuration();
 dialog_chat_log();   # Setup the chat log 
 configure_fonts();   
 
-my (%HGdata, $HGmobs, $HGareas, $HGmaps);
 hgdata_import_xml(); # test ... replace upper call when ready
 
 print_immunities();
@@ -595,9 +545,7 @@ sub parse_log_file {
 
     # logfile- and run-info is now top-right
     $YAL{logfile_info} = $YAL{currentlogfile} . (defined($YAL{saverunbuffer}) ? ' (RUN)' : '');
-
-    #$YAL{statusmessage} .= " | Total XP: " . $$RUN{totalxp} . " | Total dmg: " . (defined($damage_done{$$RUN{toon}}) ? $damage_done{$$RUN{toon}} : "None yet" ) ;
-    $YAL{statusmessage} = "Total XP: " . $$RUN{totalxp} . " | Total dmg: " . (defined($damage_done{$$RUN{toon}}) ? $damage_done{$$RUN{toon}} : "None yet" ) ;
+    $YAL{statusmessage} = "Total XP: " . $$RUN{totalxp} . " | Total dmg: " . ($$runData{$$RUN{toon}}{damOut} || "None yet" ) ;
 
     if ($OPTIONS{"showparagons"}==1) {
 	if ($$RUN{totalmobkills}>0) { 
@@ -677,42 +625,48 @@ sub parse_log_file {
 	# combat: attack and damage, xp and kills
 	next if parse_combat_line();
 
-	   #effects
-	   #if (/^    \#(\d+) (.+) \[(.+)\]/) {
-	   #ills effects
-	   if(/^    \#(\d+) (.+) \[((\d+)[m])?(\d+)[s].+\]/) {
-	   my $tempetimer = (($4 // 0) * 60) + $5;
-	   my $tempeid=$1;
-	   my $tempename= $2;
-	   #no longer required
-	   #push(@{$etimers{$tempetimer}}, $tempename);
-	   #removes the old one if it exists, and then puts the new one in place
-	   if (exists $Effecttimers{$2}){
-			delete $Effecttimers{$2}
-			 
-		}
-	   $Effecttimers{$tempename} = $tempetimer;
-	   $MaxEffecttimers{$tempename} = $tempetimer;
-	   }
+	#effects
+	#if (/^    \#(\d+) (.+) \[(.+)\]/) {
+	#ills effects
+	if(/^    \#(\d+) (.+) \[((\d+)[m])?(\d+)[s].+\]/) {
+	    # TODO: move to submode
+	    my $tempetimer = (($4 // 0) * 60) + $5;
+	    my $tempeid=$1;
+	    my $tempename= $2;
+	    #no longer required
+	    #push(@{$etimers{$tempetimer}}, $tempename);
 
-       # Different timers. Missing a lot of stuff here. Imm force for example
-       # GR
-       if (/^Greater Sanctuary will be available again in 150 seconds/) {
-	   start_timer(\@grtimer, 150);	   
-	   next;
-       }
-       if (/Greater Smite will be available again in (\d+) seconds/) {	   
-	   start_timer(\@gstimer, $1) if ($1 >=120);  # Make sure only to start timer if it's the first occurrence
-	   next;
-       }
+	    #removes the old one if it exists, and then puts the new one in place
+	    if (exists $YAL{effectTimers}{$2}) {
+		delete $YAL{effectTimers}{$2};
+	    }
+
+	    # no need to start timers when parsing an old logfile
+	    if ($YAL{isCurrent}) {
+		$YAL{effectTimers}{$tempename} = $tempetimer;
+		# TODO: only save max if self-cast ? take max from new and old if avail
+		$YAL{effectTimersMax}{$tempename} = $tempetimer;
+	    }
+	}
+
+	# Different timers. Missing a lot of stuff here. Imm force for example
+	# GR
+	if (/^Greater Sanctuary will be available again in 150 seconds/) {
+	    start_timer($YAL{timerGSanct}, 150) if $YAL{isCurrent};
+	    next;
+	}
+	if (/Greater Smite will be available again in (\d+) seconds/) {	   
+	    start_timer($YAL{timerGSmite}, $1) if ($1 >= 120) && $YAL{isCurrent};  # Make sure only to start timer if it's the first occurrence
+	    next;
+	}
 
 
-       # Saves, skill and ability checks
-       next if parse_checks_and_saves();
+	# Saves, skill and ability checks
+	next if parse_checks_and_saves();
 
 
-       # Spell and turning resists
-       # Never got round to including turn resists
+	# Spell and turning resists
+	# Never got round to including turn resists
 	if (/^(.+) casts (.+)$/) {
             my $who = $1;
 	    if ($2 =~ /unknown spell/) {
@@ -724,10 +678,11 @@ sub parse_log_file {
 	    else {
 		if ($OPTIONS{"ownspells"} && ($1 eq $$RUN{toon})) {
 		    #make sure it is a effect that we have seen
-			if (exists $MaxEffecttimers{$2}){
-			$Effecttimers {$2} = $MaxEffecttimers{$2};
-			}
-			$YW{resists} -> insert('end',$_, 'casts');
+		    if (exists $YAL{effectTimersMax}{$2}) {
+			# TODO: find out if extend spell screws this
+			$YAL{effectTimers}{$2} = $YAL{effectTimersMax}{$2};
+		    }
+		    $YW{resists} -> insert('end',$_, 'casts');
 		}
 		elsif ($OPTIONS{"otherspells"} && ($1 ne $$RUN{toon})){  
 		    $YW{resists} -> insert('end',$_, 'white');
@@ -737,58 +692,59 @@ sub parse_log_file {
 	}	
 	next if (/^(.+) casting (.+)$/);
 
-       # Spell penetration
-       if (/^(.+) : Spell Penetration : \*(success|failure)\* : \((\d+) \+ (\d+) .+ vs. SR: (\d+)\)$/) {
-	   $YW{resists} -> insert('end', "SP: $1 : ", 'lightblue');
-	   if ($2 eq "success") {
-	       $YW{resists} -> insert('end', "*$2*", 'green');
-	   }
-	   else {
-	       $YW{resists} -> insert('end', "*$2*", 'red');
-	   }
-	   $YW{resists} -> insert('end', " : $3 + $4 = " . ($3 + $4) . " vs. SR: $5 ", 'lightblue');
-	   # List the spell penetration percentage if that is desired
-	   if ($OPTIONS{"sppercent"}==1) {
-	       $YW{resists} -> insert('end', "(" .(21 - (max(1, min(20, ($5 - $4)))))*5 . "%)"."\n", 'yellow');
-	   }
-	   else {
-	       $YW{resists} -> insert('end', "\n");
-	   }
-	   
-	   if (exists($SR{$1})) {
-	       $SR{$1} = $5 if ($5>$SR{$1});
-	   }
-	   else {
-	       $SR{$1} = $5;
-	   }
-	   next;	   
-       }
+	# Spell penetration
+	if (/^(.+) : Spell Penetration : \*(success|failure)\* : \((\d+) \+ (\d+) .+ vs. SR: (\d+)\)$/) {
+	    $YW{resists} -> insert('end', "SP: $1 : ", 'lightblue');
+	    if ($2 eq "success") {
+		$YW{resists} -> insert('end', "*$2*", 'green');
+	    }
+	    else {
+		$YW{resists} -> insert('end', "*$2*", 'red');
+	    }
+	    $YW{resists} -> insert('end', " : $3 + $4 = " . ($3 + $4) . " vs. SR: $5 ", 'lightblue');
 
-       if (/^(.+) : Spell Resistance : \*(defeated|success)\* : (.+)$/) {
-	   # attacker beat our SR
-           #$YW{resists} -> insert('end',$_, 'lightblue');
-	   $YW{resists} -> insert('end', "SR *$2* $3: $1\n", 'lightblue');
-	   next;
-       }
+	    # List the spell penetration percentage if that is desired
+	    if ($OPTIONS{"sppercent"}==1) {
+		$YW{resists} -> insert('end', "(" .(21 - (max(1, min(20, ($5 - $4)))))*5 . "%)"."\n", 'yellow');
+	    }
+	    else {
+		$YW{resists} -> insert('end', "\n");
+	    }
 
-       # Turning
-       if (/^(.+) : Turn (Outsider|Construct|Vermin|Undead) : \*(success|failure)\* : \((\d+) \+ (\d+) .+ vs. TR: (\d+)\)$/) {
-	   $YW{resists} -> insert('end', "Turn $2: $1 : *$3* : ($4 + $5 = " . ($4 + $5) . " vs. SR: $6 (" . (21 - (max(1, min(20, ($6 - $5)))))*5 . '%)'."\n", 'lightblue');
-	   
-	   if (exists($TR{$1})) {
-	       $TR{$1} = $5 if ($6>$TR{$1});
-	   }
-	   else {
-	       $TR{$1} = $5;
-	   }
-	   next;	   
-       }
+	    if (exists($SR{$1})) {
+		$SR{$1} = $5 if ($5>$SR{$1});
+	    }
+	    else {
+		$SR{$1} = $5;
+	    }
+	    next;	   
+	}
+
+	if (/^(.+) : Spell Resistance : \*(defeated|success)\* : (.+)$/) {
+	    # attacker beat our SR
+	    #$YW{resists} -> insert('end',$_, 'lightblue');
+	    $YW{resists} -> insert('end', "SR *$2* $3: $1\n", 'lightblue');
+	    next;
+	}
+
+	# Turning
+	if (/^(.+) : Turn (Outsider|Construct|Vermin|Undead) : \*(success|failure)\* : \((\d+) \+ (\d+) .+ vs. TR: (\d+)\)$/) {
+	    $YW{resists} -> insert('end', "Turn $2: $1 : *$3* : ($4 + $5 = " . ($4 + $5) . " vs. SR: $6 (" . (21 - (max(1, min(20, ($6 - $5)))))*5 . '%)'."\n", 'lightblue');
+
+	    if (exists($TR{$1})) {
+		$TR{$1} = $5 if ($6>$TR{$1});
+	    }
+	    else {
+		$TR{$1} = $5;
+	    }
+	    next;	   
+	}
 	
 	# Spell and condition immunity
 	# Need two here as they are listed differently in the log
 	#if (/^(.+) : Immune to (.+)\.$/) {
-	if (/^(.+) : Immune to (.+)\.?$/) {
-	    $immune{$1}{$2} = 1;
+	if (/^(.+) : Immune to (.+?)\.?$/) {
+	    $$runData{$1}{immuneTo}{$2} = 1;
 	    # TODO: display somewhere if $1 is our current target
 	    next;
 	}
@@ -799,7 +755,7 @@ sub parse_log_file {
 
 	# more output from !list imm
 	if (/^(Spell|Other) immunities:$/) {
-		$YAL{parseSM} = "imm$1";
+	    $YAL{parseSM} = "imm$1";
 	}
 
 	#
@@ -814,33 +770,29 @@ sub parse_log_file {
 	#
 	if (/An illusion of life forms around you, then dissipates, taking your place in the beyond!/) {
 	    clear_last_fugue_timer();
-		%Effecttimers = ();
+	    $YAL{effectTimers} = {};
 	    next;
 	}
 	if (/Your Eternal Return spell fires, preventing the life from leaving your body!/) {
 	    clear_last_fugue_timer();
-		%Effecttimers = ();
+	    $YAL{effectTimers} = {};
 	    next;
 	}
-
-
 
 	# meta-data (server, party members, ...)
 	next if parse_collect_metadata();
 
 	#ills dispelelling routine
 	#if (/^.+\*dispelled\*.+$/){
-	if (/^(.+) : Dispel (.+) : \*dispelled\* :(.+)$/){
-	   	
-	   if ($$RUN{toon} eq $1) {
-			$YW{resists} -> insert('end',"Your $2 has been dispelled \n", 'orange');
-			#print "your $2 dispelled \n";
-			#print $Effecttimers{$2};
-			delete $Effecttimers{$2};
+	if (/^(.+) : Dispel (.+) : \*dispelled\* :(.+)$/) {
 
-		}
-
-		next;
+	    if ($$RUN{toon} eq $1) {
+		$YW{resists} -> insert('end',"Your $2 has been dispelled \n", 'orange');
+		#print "your $2 dispelled \n";
+		#print $YAL{effectTimers}{$2};
+		delete $YAL{effectTimers}{$2};
+	    }
+	    next;
 	}
 
 	#
@@ -848,8 +800,8 @@ sub parse_log_file {
         #
 	# This one registers who the effects concern and clears effects timers so they can be regenerated
 	if (/^\[Server\] Effects on (.+):/) {
-		%Effecttimers = ();
-		
+	    $YAL{effectTimers} = {};
+
 	    $YAL{effectId} = $1;
 	    $YAL{effectId} = $$RUN{toon} if ($1 eq "you");
 	    next;
@@ -857,7 +809,7 @@ sub parse_log_file {
 
 	if (/^    \#(\d+) (.+) \[(.+)\]/) {
 	    # This only work on yourself atm
-	    $Effects{$YAL{effectId}}{($2 . " " . $1)} = $3;
+	    $$runData{$YAL{effectId}}{effects}{($2 . " " . $1)} = $3;
 	    next;
 	}
 
@@ -871,7 +823,7 @@ sub parse_log_file {
 
 	# Clear all effects timers after rest
 	if (/^Done resting\.$/) {
-		%Effecttimers = ();
+	    $YAL{effectTimers} = {};
 	}
 
 	# Messages regarding entering and leaving the server
@@ -915,17 +867,18 @@ sub parse_log_file {
 	#
 	next if parse_player_cmds();
 
-	# TODO: some more things we could catch and display in info area
-	# if (/You are in Higher Ground Enhanced Mode./)
-	if (/^Latest Module Build: (.*)\s*/) {
-	    $YW{l_mod_date}->configure(-text=>"Mod.Build: $1");
-	    next;
-	}
 	if ($time && s/^\[Server\] //) {
 	    parse_srv_msg($_);
 	    next;
 	}
 
+	# TODO: some more things we could catch and display in info area
+	# if (/You are in Higher Ground Enhanced Mode./)
+	if (/^Latest Module Build: (.*)\s*/) {
+	    $$RUN{srvModDate} = $1;
+	    $YW{l_mod_date}->configure(-text=>"Mod.Build: $1");
+	    next;
+	}
 
 	print "Line not parsed : $_" if ($debug ne 0);
     }
@@ -1060,7 +1013,7 @@ sub parse_chat_line {
 	    $YW{t_chatlog}->insert('end', $_);
 	    # Remember to code this person as a potential party member if in party talk
 	    #to be taken out when list of players is defined
-	    $listofplayers{$speakername} = 1 if (/\[Party\]/);
+	    new_party_member($speakername) if (/\[Party\]/);
 	}
 	$YW{t_chatlog}->see('end');
 	return 1;
@@ -1072,121 +1025,128 @@ sub parse_chat_line {
 # combat: attack and damage lines, kills and xp
 sub parse_combat_line {
 
-	# Damage lines first as they are most abundant
-	if (/(.+) damages (.+): (\d+) \((.+)\)/) {
-	    my ($attacker, $defender, $total, $damages) = ($1, $2, $3, $4);
+    # Damage lines first as they are most abundant
+    if (/(.+) damages (.+): (\d+) \((.+)\)/) {
+	my ($attacker, $defender, $total, $damages) = ($1, $2, $3, $4);
 
-	    return 1 if hg_ignore_enemy($defender); # some things (like walls, doors, ...) should be ignored
+	return 1 if hg_ignore_enemy($defender); # some things (like walls, doors, ...) should be ignored
 
-	    $damage_done{$attacker} += $total;                   # sum for attacker
-	    $damage_taken{$defender} += $total;                  # sum for defender
-	    $TotalDamage{$attacker}{$defender} += $total;        # stores attacker and defender
-	    
-	    my $meleehit = 0;
-	    $meleehit = 1 if ($damages =~ /\d+ Physical/); # TODO: find out if we catch bigby spells here
+	my $oAtt = $$runData{$attacker} // hg_run_new_actor($attacker);
+	my $oDef = $$runData{$defender} // hg_run_new_actor($defender);
 
-	    # get mob healing info if attacker is a party member
-	    my $heals = exists($party{$attacker}) ? hg_mob_heals($defender) : 0;
+	$$oAtt{damOut} += $total;                   # sum for attacker
+	$$oDef{damIn} += $total;                  # sum for defender
+	$$RUN{damEnemy}{$attacker}{$defender} += $total;        # stores attacker and defender
+	
+	my $meleehit = 0;
+	$meleehit = 1 if ($damages =~ /\d+ Physical/); # TODO: find out if we catch bigby spells here
 
-	    # Now make sure to keep information about which damage types that are actually doing damage
-	    # Stole this idea and code from Kins. Ty :)
-	    my %damage_type = ();
-	    while ($damages =~ s/(\d+) (\S+)\s*//) {
-			my ($damount, $dtype) = ($1, $2);
-			if ($heals && ($dtype =~ /^(Pos|Neg)/)) {
-			    $dtype = $1; # to match with data from hgdata.xml
-			    # TODO: if ($heals{$dtype}) ...
-			}
-			$damage_type{$dtype} = $damount;
-			$DamageTypesDealt{$attacker}{$dtype} = 1 if ($meleehit==1);
-	#		print "Setting $attacker $dtype $DamageTypesDealt{$attacker}{$dtype}\n";		
-			$dam_taken_detail{$defender . " :d: " . $dtype} += $damount;
+	# get mob healing info if attacker is a party member
+	my $heals = partymember($attacker) ? hg_mob_heals($defender) : 0;
+
+	# Now make sure to keep information about which damage types that are actually doing damage
+	# Stole this idea and code from Kins. Ty :)
+	my %damage_type = ();
+	while ($damages =~ s/(\d+) (\S+)\s*//) {
+	    my ($damount, $dtype) = ($1, $2);
+	    if ($heals && ($dtype =~ /^(Pos|Neg)/)) {
+		$dtype = $1; # to match with data from hgdata.xml
+		# TODO: if ($heals{$dtype}) ...
 	    }
-	    
-	    # General data was saved above
-		# Now we should handle the specific damage data that is shown on the GUI
-	    return 1 unless ($attacker eq $$RUN{toon} || $defender eq $$RUN{toon});
-	    
-	    if ($$RUN{toon} eq $attacker) {
-			append_dmg_line($YW{damage_out}, $total, \%damage_type, $defender, $heals);
-	    }
-	    else {
-			append_dmg_line($YW{damage_inc}, $total, \%damage_type, $attacker, 0);
-	    }
-	    return 1;
+	    $damage_type{$dtype} = $damount;
+	    $$oAtt{damOutTypes}{$dtype} = 1 if ($meleehit==1);
+#		print "Setting $attacker $dtype $$oAtt{damOutTypes}{$dtype}\n";		
+	    $$RUN{dam_taken_detail}{$defender . " :d: " . $dtype} += $damount;
 	}
 	
-	# Attacks
-	# Some attacks are still not matched. For example the manticore spike attacks
-	if (/(.+ \: )?(.+) attacks (.+) : \*(hit|miss|critical hit|parried|target concealed: (\d+)%)\* : \((\d+) \+ (\d+)/) {
-		#my ($attacker, $defender, $roll, $ab) = ($2, $3, $6, $7);
-		my ($attacker, $defender, $status, $roll, $ab) = ($2, $3, $4, $6, $7);
-
-		return 1 if hg_ignore_enemy($defender);
-
-		#$status = $4;
-		$status = "crit" if $status eq "critical hit";
-		$status = $5."%" if (defined($5));
-
-		process_attack($attacker, $defender, '', $roll, $ab, $status);
-		return 1;
-	}
+	# General data was saved above
+	# Now we should handle the specific damage data that is shown on the GUI
+	return 1 unless ($attacker eq $$RUN{toon} || $defender eq $$RUN{toon});
 	
-	# Special attacks. Kept by themselves because they are less frequent
-	# Flurry of blows still not matched !!
-	if (/(.+ \: )?(.+) attempts (Cleave|Great Cleave|Knockdown|Improved Knockdown|Disarm|Improved Disarm|Melee Touch Attack|Ranged Touch Attack|Called Shot\: Arm|Called Shot\: Leg|Whirlwind Attack) on (.+) : \*(hit|miss|critical hit|parried|target concealed: (\d+)%|resisted)\* : \((\d+) \+ (\d+)/) {
-		# print $_;
-		#my ($attacker, $defender, $attacktype, $roll, $ab) = ($2, $4, $3, $7, $8);
-		#$status = $5;
-		my ($attacker, $defender, $attacktype, $status, $roll, $ab) = ($2, $4, $3, $5, $7, $8);
-		$status = "crit" if $status eq "critical hit";
-		$status = $6."%" if (defined($6));
+	if ($$RUN{toon} eq $attacker) {
+	    append_dmg_line($YW{damage_out}, $total, \%damage_type, $defender, $heals);
+	}
+	else {
+	    append_dmg_line($YW{damage_inc}, $total, \%damage_type, $attacker, 0);
+	}
+	return 1;
+    }
+	
+    # Attacks
+    # Some attacks are still not matched. For example the manticore spike attacks
+    if (/(.+ \: )?(.+) attacks (.+) : \*(hit|miss|critical hit|parried|target concealed: (\d+)%)\* : \((\d+) \+ (\d+)/) {
+	#my ($attacker, $defender, $roll, $ab) = ($2, $3, $6, $7);
+	my ($attacker, $defender, $status, $roll, $ab) = ($2, $3, $4, $6, $7);
 
-		process_attack($attacker, $defender, $attacktype, $roll, $ab, $status);
-		return 1;
+	return 1 if hg_ignore_enemy($defender);
+
+	#$status = $4;
+	$status = "crit" if $status eq "critical hit";
+	$status = $5."%" if (defined($5));
+
+	process_attack($attacker, $defender, '', $roll, $ab, $status);
+	return 1;
+    }
+
+    # Special attacks. Kept by themselves because they are less frequent
+    # Flurry of blows still not matched !!
+    if (/(.+ \: )?(.+) attempts (Cleave|Great Cleave|Knockdown|Improved Knockdown|Disarm|Improved Disarm|Melee Touch Attack|Ranged Touch Attack|Called Shot\: Arm|Called Shot\: Leg|Whirlwind Attack) on (.+) : \*(hit|miss|critical hit|parried|target concealed: (\d+)%|resisted)\* : \((\d+) \+ (\d+)/) {
+	# print $_;
+	#my ($attacker, $defender, $attacktype, $roll, $ab) = ($2, $4, $3, $7, $8);
+	#$status = $5;
+	my ($attacker, $defender, $attacktype, $status, $roll, $ab) = ($2, $4, $3, $5, $7, $8);
+	$status = "crit" if $status eq "critical hit";
+	$status = $6."%" if (defined($6));
+
+	process_attack($attacker, $defender, $attacktype, $roll, $ab, $status);
+	return 1;
+    }
+
+    # Kill
+    if (/^(.+) killed (.+)$/) {
+
+	my $killer = $$runData{$1} // hg_run_new_actor($1);
+	my $killed = $$runData{$2} // hg_run_new_actor($2);
+
+	$$killer{kills}++;
+	$$killer{lastKilled} = $2;
+	$$killed{deaths}++;
+	$$killed{lastKiller} = $1;
+	$$RUN{killsEnemy}{$1}{$2}++;
+
+	# Start death timer if it was the toon that died and clear effects timers
+	if ($2 eq $$RUN{toon}) {
+	    $$RUN{deaths}++;
+	    $$RUN{lastKiller} = $1;
+	    $YAL{effectTimers} = {};
+	} 
+	if (exists($$RUN{partyList}{$2})) {
+	    # Start a death timer if it was a party member who died
+	    push(@{$$RUN{deathTimers}{300}}, $2); # unless $$RUN{cMap} && !$HGmaps->{$$RUN{cMap}}{'respawn'};
+	}
+	else {
+	    # Check if the monster was a paragon
+	    $$RUN{totalmobkills}++;
+	    my $pl = hg_para_level($2);
+	    $$RUN{paracount}{$pl}++ if ($pl);
 	}
 
-	# Kill
-	if (/^(.+) killed (.+)$/) {
-		$kills{$1}++;
-		$deaths{$2}++;
-		$partykiller{$2} = $1;
-		$partykilled{$1} = $2;
-		$Kills{$1}{$2}++;
-
-		# Start death timer if it was the toon that died and clear effects timers
-		if ($2 eq $$RUN{toon}) {
-			$$RUN{deaths}++; #$deaths++;
-			$$RUN{lastKiller} = $1;
-			%Effecttimers = ();
-		} 
-		if (exists($party{$2})) {
-			# Start a death timer if it was a party member who died
-			push(@{$timers{300}}, $2); # unless $$RUN{cMap} && !$HGmaps->{$$RUN{cMap}}{'respawn'};
-		}
-		else {
-			# Check if the monster was a paragon
-			$$RUN{totalmobkills}++;
-			my $pl = hg_para_level($2);
-			$$RUN{paracount}{$pl}++ if ($pl);
-		}
-
-		# Hmm. Still counting this separately for the player. That is not necessary. Should be integrated with the general hash
-		if ($$RUN{toon} eq $1) {
-			$$RUN{kills}++; #$kills++;
-			$$RUN{lastKilled} = $2;
-		}
-
-		return 1;
-	}    
-
-	# XP
-	if (/^Experience Points Gained:\s+(\d+)$/ ) {
-		$$RUN{totalxp} += $1;
-		return 1;
+	# Hmm. Still counting this separately for the player. That is not necessary. Should be integrated with the general hash
+	if ($$RUN{toon} eq $1) {
+	    $$RUN{kills}++;
+	    $$RUN{lastKilled} = $2;
 	}
 
-	return 0;
+	return 1;
+    }
+
+    # XP
+    if (/^Experience Points Gained:\s+(\d+)$/ ) {
+	$$RUN{totalxp} += $1;
+	return 1;
+    }
+
+    return 0;
 }
 
 #
@@ -1313,15 +1273,15 @@ sub parse_sm_end {
 
 # collect data for "Damage immunities"
 sub parse_sm_imm {
-	#printf "in parse_sm_imm\(\)\n";
-	#if (/^    (Bludgeoning|Piercing|Slashing|Magical|Acid|Cold|Divine|Electrical|Fire|Negative|Positive|Sonic): \.+(\d+)%(\.+(\d+)\/-\.+)?/)
-	if (/^    (\w+): \.+(-?\d+)%(\.+(\d+)\/-\.+)?/) {
-		#print "imm found: '$1'/'$2'/'".($4 // '?')."'\n";
-		$immunities{$1} = $2;
-		$resists{$1} = $4 // '';
-		print_immunities(); # TODO: only once when we have all of them
-	}
-	return 1;
+    #printf "in parse_sm_imm\(\)\n";
+    #if (/^    (Bludgeoning|Piercing|Slashing|Magical|Acid|Cold|Divine|Electrical|Fire|Negative|Positive|Sonic): \.+(\d+)%(\.+(\d+)\/-\.+)?/)
+    if (/^    (\w+): \.+(-?\d+)%(\.+(\d+)\/-\.+)?/) {
+	#print "imm found: '$1'/'$2'/'".($4 // '?')."'\n";
+	$immunities{$1} = $2;
+	$resists{$1} = $4 // '';
+	print_immunities(); # TODO: only once when we have all of them
+    }
+    return 1;
 }
 
 # collect data for "Other immunities"
@@ -1352,100 +1312,91 @@ sub parse_sm_immSpell {
 # meta-data collecting (server, party, location, ...)
 
 sub parse_collect_metadata {
-	# If you use the PC Scry then set that toon as the primary
-	if (/^(.+): PCScry: Select an option$/) {
-		if ($OPTIONS{"catchtoonname"}==1) {
-			new_party_member($1);
-			$$RUN{toon} = $1;
-		}
-		return 1;
+
+    # If you use the PC Scry then set that toon as the primary
+    if (/^(.+): PCScry: Select an option$/) {
+	if ($OPTIONS{"catchtoonname"}==1) {
+	    $$RUN{toon} = $1;
+	    new_party_member($1);
 	}
+	return 1;
+    }
 
-	# Welcome message
-	if (/Welcome to Higher Ground, (.+)!$/) {
-		if ($OPTIONS{"catchtoonname"}==1) {
-			# clear old toon from party if re-login with another toon
-			$party{$$RUN{toon}} = 0 if ($$RUN{toon} and defined $party{$$RUN{toon}});
+    # Welcome message
+    if (/Welcome to Higher Ground, (.+)!$/) {
+	if ($OPTIONS{"catchtoonname"}==1) {
+	    # clear old toon from party if re-login with another toon
+	    $$RUN{partyList}{$$RUN{toon}} = 0 if ($$RUN{toon} and defined $$RUN{partyList}{$$RUN{toon}});
 
-			new_party_member($1);
-			$$RUN{toon} = $1;
-		}
-		return 1;
+	    $$RUN{toon} = $1;
+	    new_party_member($1);
 	}
+	return 1;
+    }
 
-	# !who header - clears party stats
-	if (/^\[Server\] ===== Server (\d+).+$/){
-		$YAL{parseSM} = 'who';
-		#%party = ();
-		if ($1 eq $$RUN{srvName}) {
-			$YAL{myServerWho} = 1;
-			clear_party() if $YAL{catchPartyWho}; # only if it's a party-who
-		} else {
-			$YAL{myServerWho} = 0;
-			$YAL{catchPartyWho} = 0;
-		}
-		return 1;
-	}
-
-	# On which server are we? - at welcome and end of !who
-	if (/You are on server (\d+)/) {
-	    $$RUN{srvName} = $1;
-	    $YAL{myServerWho} = 0; # no !who output to follow immediately after
+    # !who header - clears party stats
+    if (/^\[Server\] ===== Server (\d+).+$/){
+	$YAL{parseSM} = 'who';
+	#$$RUN{partyList} = {};
+	if ($1 eq $$RUN{srvName}) {
+	    $YAL{myServerWho} = 1;
+	    clear_party() if $YAL{catchPartyWho}; # only if it's a party-who
+	} else {
+	    $YAL{myServerWho} = 0;
 	    $YAL{catchPartyWho} = 0;
-	    return 1;
 	}
+	return 1;
+    }
 
-	# prepare server uptime display
-	if (/This server has been up for ((\d+) hours, )?(\d+) minutes,? and (\d+) seconds\./) {
-	    $$RUN{srvBaseUptime} = $4 + 60*$3 + ($2 ? 3600*$2 : 0);
-	    $$RUN{srvBaseTS} = $$RUN{srvLogTS};
-	    return 1;
+    # On which server are we? - at welcome and end of !who
+    if (/You are on server (\d+)/) {
+	$$RUN{srvName} = $1;
+	$YAL{myServerWho} = 0; # no !who output to follow immediately after
+	$YAL{catchPartyWho} = 0;
+	return 1;
+    }
+
+    # prepare server uptime display
+    if (/This server has been up for ((\d+) hours, )?(\d+) minutes,? and (\d+) seconds\./) {
+	$$RUN{srvBaseUptime} = $4 + 60*$3 + ($2 ? 3600*$2 : 0);
+	$$RUN{srvBaseTS} = $$RUN{srvLogTS};
+	return 1;
+    }
+
+    if (/^(.+) has (joined|left) the party\./) {
+	if ($2 eq "joined") {
+	    new_party_member($1); # TODO: make option for this catch
+	} else {
+	    $$RUN{partyList}{$1} = 0;
+	    $$RUN{toonList}{$1} = 1;
 	}
+	return 1;
+    }
 
-	if (/^(.+) has (joined|left) the party\./) {
-		$listofplayers{$1} = 1;
-		if ($2 eq "joined") {
-			new_party_member($1); # TODO: make option for this catch
-		} else {
-			$party{$1} = 0;
-		}
-		return 1;
-	}
-
-	return 0;
+    return 0;
 }
 
 # Player information from !who commands
 sub parse_sm_who {
-	return 1 if (!$YAL{myServerWho}); # ignore playerlisting from other servers
-	# old if (/^  \s*\[\d+(\/\d+)?\]( \|.+\|)? (.+) $/) {
-	#ills version: if (/^.+\[(\d+ \D\D\D.+?)\] (.+) $/){    
-	if (/^.+\[(\d+ \D\D\D.+?)\] (.+) $/) {
-		#print "!who output: $_" if (1);
-		#print "!who output: $_" if ($debug);
-	    chomp;
-	    # Remove DM tag
-		if ($debug) {print "$_ in who output ";}
-	    my $toonname = $2;
-	    $toonname =~ s/ \[(DM|Guide) PC\]$//;
-	    # Remove guild tag
-	    #removed, done with regex
-		#$toonname =~ s/ <.+>//;
 
-	    # Now this is a bit trickly and certanly not a perfect solution
-	    # Remove things in end parentheses as they most likely are because of an area eg., !who 113 area.
-	    # Some people use it to ID theis login through so lets see ....
-		#due to the new maching routine, this next line no matter is required.
-	    #$toonname =~ s/ \(.{8,30}\)//;
-	    
-	    $listofplayers{$toonname} = 0 if (!defined($listofplayers{$toonname}));
-	    #$party{$toonname} = 1;
-	    new_party_member($toonname) if ($YAL{catchPartyWho});
-		if ($debug) {print "$listofplayers{$toonname} \n";}
-		
-#	    print "Found $toonname in this line:>>>$_<<<\n";
-	}
-	return 1;
+    return 1 if (!$YAL{myServerWho}); # ignore playerlisting from other servers
+
+    # old if (/^  \s*\[\d+(\/\d+)?\]( \|.+\|)? (.+) $/) {
+    #ills version: if (/^.+\[(\d+ \D\D\D.+?)\] (.+) $/){    
+    if (/^.+\[(\d+ \D\D\D.+?)\] (.+) $/) {
+	chomp;
+	my $toonname = $2;
+
+	# Remove DM tag
+	$toonname =~ s/ \[(DM|Guide) PC\]$//;
+	# Remove guild tag
+	#removed, done with regex
+	    #$toonname =~ s/ <.+>//;
+
+	$$RUN{toonList}{$toonname} = 1; #0 if (!defined($$RUN{toonList}{$toonname}));
+	new_party_member($toonname) if ($YAL{catchPartyWho});
+    }
+    return 1;
 }
 
 #######################################################################
@@ -1458,9 +1409,9 @@ sub parse_gear_list_header {
 	# TODO: if ($$RUN{toon} eq $q) ...
 	$YAL{gearcontainer} = $1;
 	#if ($YAL{parseSM} ne 'gear') {
-    print "reset gearcontainer $YAL{gearcontainer}\n" if (exists($Gear{$YAL{gearcontainer}}) && !$YAL{next_item_rarity});
+    print "reset gearcontainer $YAL{gearcontainer}\n" if (exists($YAL{gear}{$YAL{gearcontainer}}) && !$YAL{next_item_rarity});
 	    # Now clear the existing data if that exists
-	    $Gear{$YAL{gearcontainer}} = () if (exists($Gear{$YAL{gearcontainer}}) && !$YAL{next_item_rarity});
+	    $YAL{gear}{$YAL{gearcontainer}} = {} if (exists($YAL{gear}{$YAL{gearcontainer}}) && !$YAL{next_item_rarity});
 	    $YAL{parseSM} = 'gear';
 	#}
 	$YAL{next_item_rarity} = $2; # TODO: use that data
@@ -1469,7 +1420,7 @@ sub parse_gear_list_header {
 	$YAL{gearcontainer} = "Bankchest $YAL{bankchest}";
 	$YAL{parseSM} = 'gear';
 	# Now clear the existing data if that exists
-	$Gear{$YAL{gearcontainer}} = () if (exists($Gear{$YAL{gearcontainer}}));
+	delete $YAL{gear}{$YAL{gearcontainer}}; # = () if (exists($YAL{gear}{$YAL{gearcontainer}}));
 	$YAL{next_item_rarity} = ''; # unknown rarity
     }
     elsif (/You are now using bank chest '(.+?)'/) {
@@ -1489,7 +1440,7 @@ sub parse_gear_list_header {
 sub parse_sm_gear {
     if (/^    ([A-Za-z].+)/) {
 	if ($YAL{gearcontainer} ne "") {
-		    $Gear{$YAL{gearcontainer}}{$1}++;
+	    $YAL{gear}{$YAL{gearcontainer}}{$1}++;
 	}
 	# TODO: if ($YAL{next_item_rarity}) ...
 	return 1;
@@ -1548,27 +1499,29 @@ sub parse_player_cmds {
 # Processing functions
 
 #
-#
 # process attack data
 #
 sub process_attack {
     my ($attacker, $defender, $attacktype, $roll, $ab, $status) = @_;
 
-    $swings{$attacker}++;
-    $swingsagainst{$defender}++;
-    $Swings{$attacker}{$defender}++;
+    my $oAtt = $$runData{$attacker} // hg_run_new_actor($attacker);
+    my $oDef = $$runData{$defender} // hg_run_new_actor($defender);
+
+    $$oAtt{swingsOut}++;
+    $$oDef{swingsIn}++;
+    $$RUN{swingsAt}{$attacker}{$defender}++;
     
     # Make sure to update the AB and AC estimate
     $AB{$attacker} = 0 if (!exists($AB{$attacker}));
     $AB{$attacker} = $ab if ($ab > $AB{$attacker});
     
     if ($status eq "hit" || $status eq "crit") {
-	$hits{$attacker}++;
-	$Hits{$attacker}{$defender}++;
+	$$oAtt{hits}++;
+	$$RUN{hitsEnemy}{$attacker}{$defender}++;
 
 	if ($status eq "crit") {
-	    $crits{$attacker}++;
-	    $Crits{$attacker}{$defender}++;		    
+	    $$oAtt{crits}++;
+	    $$RUN{critsEnemy}{$attacker}{$defender}++;
 	}
 	
 	$$RUN{hits}++ if ($attacker eq $$RUN{toon});
@@ -1580,31 +1533,30 @@ sub process_attack {
 
 	# special attacks
 	# TODO: this can't be all ...
-	$Disarm{$attacker}{$defender}++ if ($attacktype eq "Improved disarm");
-
+	$$RUN{disarms}{$attacker}{$defender}++ if ($attacktype =~ /disarm/i);
     }
     elsif ($status eq "miss" && $roll>1) {
-	$dodge{$defender}++;
+	$$oDef{dodge}++;
 	$MaxAC{$defender} = 0 if (!exists($MaxAC{$defender}));
 	$MaxAC{$defender} = $ab+$roll if ($ab+$roll > $MaxAC{$defender});
     }
     elsif ($status =~ /(\d+)\%/) {
 	return if $status eq '100%'; # anti-exploit, not real conceal, so skip it
-	$dodge{$defender}++;
-	$conceal{$defender} = $1 if (!exists($conceal{$defender}));
-	$conceal{$defender} = $1 if $1 > $conceal{$defender};
-	$Conceals{$attacker}{$defender}++;
+	$$oDef{dodge}++;
+	$$oDef{conceal} = $1 if (!exists($$oDef{conceal}));
+	$$oDef{conceal} = $1 if $1 > $$oDef{conceal};
+	$$RUN{missConcealed}{$attacker}{$defender}++;
 	$status = "c$1%"; # for better display?
     }
     else {
-	$dodge{$defender}++;
+	# 'miss' | 'resisted'
+	$$oDef{dodge}++;
     }
 
-    $hits{$attacker} = 0 if (!exists($hits{$attacker}));
-    $hitpercentage{$attacker} = sprintf("%3.2f %%", $hits{$attacker}/$swings{$attacker}*100);
+    $$oAtt{hitPercentage} = sprintf("%3.2f %%", $$oAtt{hits}/$$oAtt{swingsOut}*100);
     
     if ($OPTIONS{"badboy"}==1) {
-	$badtooncounter{$attacker}++ if (hg_do_not_hit($defender));
+	$$oAtt{badToonHits}++ if (hg_do_not_hit($defender));
     }
     
     if ($$RUN{toon} eq $attacker) {
@@ -1636,67 +1588,45 @@ sub starttimer {
 }
 #ills effect
 sub update_effects_timers{
-	
-	#required line for gui
-	$YW{othertimers}->delete("1.0", 'end');
-	
-	#Create ordered listing of effect times sorted by time
-	my @sortedEffects = sort {$Effecttimers{$a} <=> $Effecttimers{$b}} keys %Effecttimers;
-	foreach my $EffectName (@sortedEffects){
-		#print "$EffectName $Effecttimers{$EffectName}\n";
-		#decrement the value on each hash
-		#delete timer if it is 0
-		
-		$Effecttimers{$EffectName}--; # = $Effecttimers{$EffectName} - 1;
-		if ($Effecttimers{$EffectName} eq 0) {
-		    delete $Effecttimers{$EffectName};
-		    next;
-		}
-		
-		#format the effect to to window
-		my $etimertext = sprintf "%2d:%02d %s \n", integer_div($Effecttimers{$EffectName}, 60), ($Effecttimers{$EffectName} % 60), $EffectName;
 
-		#place the effect in the window
-		$YW{othertimers} -> insert('end', $etimertext);
-		
+    #required line for gui
+    $YW{othertimers}->delete("1.0", 'end');
+    
+    #Create ordered listing of effect times sorted by time
+    my @sortedEffects = sort {$YAL{effectTimers}{$a} <=> $YAL{effectTimers}{$b}} keys %{ $YAL{effectTimers} };
+    foreach my $EffectName (@sortedEffects){
+	#print "$EffectName $YAL{effectTimers}{$EffectName}\n";
+	#decrement the value on each hash
+	#delete timer if it is 0
+
+	$YAL{effectTimers}{$EffectName}--;
+	if ($YAL{effectTimers}{$EffectName} <= 0) {
+	    delete $YAL{effectTimers}{$EffectName};
+	    next;
 	}
-	@sortedEffects = {};
-	
-	
-	#beyond this line is the old way
-    #if (exists($etimers{0})) {
-	#delete($etimers{0});
-    #}
-    #foreach my $etime (sort {$a <=> $b} keys(%etimers)) {
-	#if ($debug){print "$etime";}
-	#$etimers{$etime-1} =[@{$etimers{$etime}}];
 
-	#foreach my $effecttimer (@{$etimers{$etime}}) {
-		#if ($debug){print "$effecttimer \n";}
-	    #my $etimertext = sprintf "%2d:%02d %s \n", integer_div($etime, 60), ($etime % 60), $effecttimer;
+	#format the effect to to window
+	my $etimertext = sprintf "%2d:%02d %s \n", integer_div($YAL{effectTimers}{$EffectName}, 60), ($YAL{effectTimers}{$EffectName} % 60), $EffectName;
 
-		#$YW{othertimers} -> insert('end', $etimertext);
-
-	#}
-	#end the old way
-	#delete($etimers{$etime});
-    #}
-	#end the old way
+	#place the effect in the window
+	$YW{othertimers} -> insert('end', $etimertext);
+    }
+    @sortedEffects = {};
 }
 
 sub update_death_timers {
     $YW{fuguetimers}->delete("1.0", 'end');
 	#$YW{othertimers}->delete("1.0", 'end');
 	
-    if (exists($timers{0})) {
-	delete($timers{0});
+    if (exists($$RUN{deathTimers}{0})) {
+	delete($$RUN{deathTimers}{0});
     }
-    foreach my $time (sort {$a <=> $b} keys(%timers)) {	
-	$timers{$time-1} =[@{$timers{$time}}];
+    foreach my $time (sort {$a <=> $b} keys(%{ $$RUN{deathTimers} })) {	
+	$$RUN{deathTimers}{$time-1} =[@{$$RUN{deathTimers}{$time}}];
 	if ($time<11 && $OPTIONS{"fuguebeep"}) {
 	    $YW{mw} -> bell;
 	}
-	foreach my $player (@{$timers{$time}}) {
+	foreach my $player (@{$$RUN{deathTimers}{$time}}) {
 	    my $timertext = sprintf "%2d:%02d %s \n", integer_div($time, 60), ($time % 60), $player;
 	    my $s = ($player eq $$RUN{toon}) ? 'self' : '';
 	    if ($time<10) {
@@ -1712,58 +1642,29 @@ sub update_death_timers {
 		$YW{fuguetimers} -> insert('end', $timertext, $s);
 	    }
 	}
-	delete($timers{$time});
+	delete($$RUN{deathTimers}{$time});
     }
-# taken out into effects sectoin
-#    $YW{othertimers} = "";
-#    if (@grtimer) {
-#	shift(@grtimer) if ($grtimer[0]<1);
-#	if (@grtimer) {
-#	  #  $grtimer[0]--;
-	 #   $YW{othertimers} .= sprintf "GSanc %2d:%02d", integer_div($grtimer[0], 60), ($grtimer[0] % 60);
-#	}
- #   }
-#    if (@gstimer) {
-#	shift(@gstimer) if ($gstimer[0]<1);
-#	if (@gstimer) { 
-#	  #  $gstimer[0]--;
-	  #  $YW{othertimers} .= "\n" if (@grtimer);
-	  #  $YW{othertimers} .= sprintf "GSmit %2d:%02d", integer_div($gstimer[0], 60), ($gstimer[0] % 60);
-#	}
- #   }
 }
 
 
 sub clear_last_fugue_timer() {
-#    pop(@{$timers{300}});        
+#    pop(@{$$RUN{deathTimers}{300}});        
 }
 
 
 sub integer_div {
-  my ($a, $b) = @_;
-  return(($a - ($a % $b)) / $b);
+    my ($a, $b) = @_;
+    return(($a - ($a % $b)) / $b);
 }
 
 sub min {
-  my ($a, $b) = @_;
-
-  if ($a < $b) {
-      return $a;
-  }
-  else {
-      return $b;
-  }
+    my ($a, $b) = @_;
+    return ($a > $b) ? $b : $a;
 }
 
 sub max {
-  my ($a, $b) = @_;
-
-  if ($a > $b) {
-      return $a;
-  }
-  else {
-      return $b;
-  }
+    my ($a, $b) = @_;
+    return ($a > $b) ? $a : $b;
 }
 
 sub inc_logcount {
@@ -1810,35 +1711,21 @@ sub check_log_file {
 # This hasn't been updated in some time. Probably not resetting everything correctly but then I never use it anyway
 #
 sub reset_all {
-    $$RUN{deaths} = 0; #$deaths = 0;
-    $$RUN{kills} = 0; #$kills = 0;
+    $$RUN{deaths} = 0;
+    $$RUN{kills} = 0;
     $$RUN{totalxp} = 0;
     $$RUN{lastKilled}="";
     $$RUN{lastKiller}="";
 
-    @grtimer = ();
-    @gstimer = ();
+    $YAL{timerGSanct} = [];
+    $YAL{timerGSmite} = [];
 
     $$RUN{hit_frequency} = 0;
     $$RUN{defence_frequency} = 0;
 
+    $$RUN{toonList} = {};
 
-    %kills = ();
-    %deaths = ();
-    %swings = ();
-    %damage_done = ();
-    %partykiller = ();
-    %partykilled = ();
-    %badtooncounter = (); 
-    %partyhits = ();
-    %partyattacks = ();
-
-
-    %Kills = ();
-
-    %listofplayers=();
-    %hitpercentage = ();
-    
+    hg_run_reset(); # TODO: check this ...
 
     $YW{damage_inc}->delete("1.0", 'end');
     $YW{damage_out}->delete("1.0", 'end');
@@ -1850,8 +1737,8 @@ sub reset_all {
 
 
 sub clear_party {
-    %party = ();
-    $party{$$RUN{toon}} = 1;    
+    $$RUN{partyList} = {};
+    $$RUN{partyList}{$$RUN{toon}} = 1 if $$RUN{toon};
 }
 
 #
@@ -1864,7 +1751,7 @@ sub dialog_party_entry {
     if (!Exists($party_dialog)) {
 		my %pty = ();
 		# Get the names of the people in the current party
-		my @existingparty = keys(%party);
+		my @existingparty = keys(%{$$RUN{partyList}});
 		if ($debug) {print "@existingparty \n";
 	}
 	$party_dialog = $YW{mw}->Toplevel();
@@ -1886,7 +1773,7 @@ sub dialog_party_entry {
 	    my $thistoon = $party_dialog->BrowseEntry(-variable => \$pty{$i},
 				       -label => "Member $i");
 
-	    foreach $_ (sort { $listofplayers{$b} <=> $listofplayers{$a} || $a cmp $b } keys %listofplayers) {
+	    foreach $_ (sort { $$RUN{toonList}{$b} <=> $$RUN{toonList}{$a} || $a cmp $b } keys %{$$RUN{toonList}}) {
 		$thistoon->insert("end", $_);
 	    }	    
 	    $thistoon-> pack(-anchor=>'e');
@@ -1899,7 +1786,7 @@ sub dialog_party_entry {
 						new_party_member($$RUN{toon});
 						for (my $i=2; $i<=10; $i++) {
 						    if (defined($pty{$i})) {
-							if ($pty{$i} ne "" && !exists($party{$pty{$i}})) {
+							if ($pty{$i} ne "" && !exists($$RUN{partyList}{$pty{$i}})) {
 							    new_party_member($pty{$i});
 							}
 						    }
@@ -1927,57 +1814,55 @@ sub dialog_party_summary {
     
     # We only want one copy of this window
     if (!Exists($party_summary)) {
-		my %pty = ();
+	my %pty = ();
 
-		$party_summary = $YW{mw}->Toplevel();
-		$party_summary->title("Party summary statistics");
+	$party_summary = $YW{mw}->Toplevel();
+	$party_summary->title("Party summary statistics");
 
-		my $ps_frm = $party_summary->Frame()->pack(-side=>'top');
-		my $col = 0;
-		my $row = 0;
-		for my $hname ('Toon', 'Kills', 'Last Killed', 'Deaths', 'Last Killer', 'Damage', 'Hit%', 'Holla') {
-			$ps_frm->Label(-text => $hname, -relief => 'ridge')->grid(-row => $row, -column => $col++, -sticky => 'we');
-		}
+	my $ps_frm = $party_summary->Frame()->pack(-side=>'top');
+	my $col = 0;
+	my $row = 0;
+	for my $hname ('Toon', 'Kills', 'Last Killed', 'Deaths', 'Last Killer', 'Damage', 'Hit%', 'Holla') {
+	    $ps_frm->Label(-text => $hname, -relief => 'ridge')->grid(-row => $row, -column => $col++, -sticky => 'we');
+	}
 
-		# Place OK button at bottom
-		$party_summary->Button(-text => "Ok", -command => sub {
-			$party_summary->withdraw();						 
-		}) -> pack(-side=>'bottom');
+	# Place OK button at bottom
+	$party_summary->Button(-text => "Ok", -command => sub {
+	    $party_summary->withdraw();						 
+	}) -> pack(-side=>'bottom');
 
-		# Now generate a row frame for each party member to display the information
-		# TODO: If the verticalsummary is 1 then make it as columns instead - lost with new party dialog
-		my %frm_party = ();
-		my $pfont = [-weight => 'normal', -family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}];
-		foreach my $id (sort (keys(%party))) {	    
+	# Now generate a row frame for each party member to display the information
+	# TODO: If the verticalsummary is 1 then make it as columns instead - lost with new party dialog
+	my %frm_party = ();
+	my $pfont = [-weight => 'normal', -family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}];
+	foreach my $id (sort (keys(%{$$RUN{partyList}}))) {	    
 
-			# TODO: check if it's an active partymember or was just logged on in between
-			$col = 0;
-			$row++;
+	    # TODO: check if it's an active partymember or was just logged on in between
+	    $col = 0;
+	    $row++;
+	    my $pm = $$runData{$id};
 
-			$hitpercentage{$id} = 0 if (!defined($hitpercentage{$id}));
-			$badtooncounter{$id} = 0 if (!defined($badtooncounter{$id}));
-
-			$ps_frm->Label(-text => $id, -relief => 'ridge')
-				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
-			$ps_frm->Label(-textvariable => \$kills{$id}, -relief => 'ridge', -font => $pfont)
-				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
-			$ps_frm->Label(-textvariable => \$partykilled{$id}, -relief => 'ridge', -font => $pfont)
-				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
-			$ps_frm->Label(-textvariable => \$deaths{$id}, -relief => 'ridge', -font => $pfont)
-				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
-			$ps_frm->Label(-textvariable => \$partykiller{$id}, -relief => 'ridge', -font => $pfont)
-				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
-			$ps_frm->Label(-textvariable => \$damage_done{$id}, -relief => 'ridge', -font => $pfont)
-				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
-			$ps_frm->Label(-textvariable => \$hitpercentage{$id}, -relief => 'ridge', -font => $pfont)
-				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
-			$ps_frm->Label(-textvariable => \$badtooncounter{$id}, -relief => 'ridge', -font => $pfont)
-				->grid(-row => $row, -column => $col++, -sticky => 'nswe');
-		}
+	    $ps_frm->Label(-text => $id, -relief => 'ridge')
+		    ->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+	    $ps_frm->Label(-textvariable => \$$pm{kills}, -relief => 'ridge', -font => $pfont)
+		    ->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+	    $ps_frm->Label(-textvariable => \$$pm{lastKilled}, -relief => 'ridge', -font => $pfont)
+		    ->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+	    $ps_frm->Label(-textvariable => \$$pm{deaths}, -relief => 'ridge', -font => $pfont)
+		    ->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+	    $ps_frm->Label(-textvariable => \$$pm{lastKiller}, -relief => 'ridge', -font => $pfont)
+		    ->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+	    $ps_frm->Label(-textvariable => \$$pm{damOut}, -relief => 'ridge', -font => $pfont)
+		    ->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+	    $ps_frm->Label(-textvariable => \$$pm{hitPercentage}, -relief => 'ridge', -font => $pfont)
+		    ->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+	    $ps_frm->Label(-textvariable => \$$pm{badToonHits}, -relief => 'ridge', -font => $pfont)
+		    ->grid(-row => $row, -column => $col++, -sticky => 'nswe');
+	}
     }
     else {
-		$party_summary->deiconify();
-		$party_summary->raise();	
+	$party_summary->deiconify();
+	$party_summary->raise();
     }
 }
 
@@ -2156,10 +2041,14 @@ sub dialog_detailed_summary {
 
 	# Find the list of critters we want to show info on 
 	my %critterlist;
-	@critterlist{(keys(%party), keys(%kills), keys(%deaths))} = ();
+	#@critterlist{(keys(%{$$RUN{partyList}}), keys(%kills), keys(%deaths))} = ();
+	@critterlist{(keys(%{$runData}))} = ();
 	foreach $_ (sort keys %critterlist) {
+
+	    next if !$_; # TODO: find out why we get an empty key
+
 	    $grid->add($_);
-	    if (exists($party{$_})) {
+	    if (exists($$RUN{partyList}{$_})) {
 		$grid->itemCreate($_, 0, -text => $_, -style=>"party");
 	    }
 	    else {
@@ -2175,8 +2064,8 @@ sub dialog_detailed_summary {
 	    $MaxAC{$_} = "" if (!exists($MaxAC{$_}));
 	    $grid->itemCreate($_, 2, -text => ($MinAC{$_} . " - " . $MaxAC{$_}));
 
-	    if (exists($conceal{$_})) {
-		$grid->itemCreate($_, 3, -text => $conceal{$_});
+	    if (exists($$runData{$_}{conceal})) {
+		$grid->itemCreate($_, 3, -text => $$runData{$_}{conceal});
 	    }
 	    else {
 		$grid->itemCreate($_, 3, -text => "");
@@ -2190,21 +2079,21 @@ sub dialog_detailed_summary {
 		$grid->itemCreate($_, 4, -text => "");
 	    }
 	    
-	    $grid->itemCreate($_, 5, -text => $kills{$_});
-	    $grid->itemCreate($_, 6, -text => $deaths{$_});
+	    $grid->itemCreate($_, 5, -text => $$runData{$_}{kills});
+	    $grid->itemCreate($_, 6, -text => $$runData{$_}{deaths});
 
 	    # Immunities
 	    my $imm = "";
-	    $imm .= "Cr " if (exists($immune{$_}{"Critical Hits"}));
-	    $imm .= "Sn " if (exists($immune{$_}{"Sneak Attacks"}));
-	    $imm .= "Mi " if (exists($immune{$_}{"Mind Affecting Spells"}));
-	    $imm .= "B7 " if (exists($immune{$_}{"Bigby's Grasping Hand"}));
-	    $imm .= "Im " if (exists($immune{$_}{"Implosion"}));
-	    $imm .= "DM " if (exists($immune{$_}{"Death Magic"}));
+	    $imm .= "Cr " if (exists($$runData{$_}{immuneTo}{"Critical Hits"}));
+	    $imm .= "Sn " if (exists($$runData{$_}{immuneTo}{"Sneak Attacks"}));
+	    $imm .= "Mi " if (exists($$runData{$_}{immuneTo}{"Mind Affecting Spells"}));
+	    $imm .= "B7 " if (exists($$runData{$_}{immuneTo}{"Bigby's Grasping Hand"}));
+	    $imm .= "Im " if (exists($$runData{$_}{immuneTo}{"Implosion"}));
+	    $imm .= "DM " if (exists($$runData{$_}{immuneTo}{"Death Magic"}));
 	    $grid->itemCreate($_, 7, -text => $imm);
 
 
-	    $grid->itemCreate($_, 9, -text => $damage_takenstr{$_});
+	    $grid->itemCreate($_, 9, -text => $$runData{$_}{damInStr});
 	}
 
     }
@@ -2254,17 +2143,17 @@ sub dialog_effects {
 
         my $toonchooser = $effectsdialog->BrowseEntry(-label => "Toons:", -variable=>\$whichtoon, 
 						      -browsecmd=> sub {
-							  if (exists($Effects{$whichtoon})) {
+							  if (exists($$runData{$whichtoon}{effects})) {
 							      $showeffects->delete("1.0", 'end');
-							      foreach my $effect (sort keys(%{$Effects{$whichtoon}})) {
+							      foreach my $effect (sort keys(%{ $$runData{$whichtoon}{effects} })) {
 								  
-								  $showeffects->insert('end', $effect . "\t" . $Effects{$whichtoon}.  "\n");
+								  $showeffects->insert('end', $effect . "\t" . $$runData{$whichtoon}{effects}{$effect}.  "\n");
 							      }
 							  }
 						      }, 
 						      -state=> 'readonly',
 						      -labelPack=>[-side=>'top'])->pack(-side=>'top');
-	$toonchooser->insert('end', sort keys(%Effects));
+	$toonchooser->insert('end', sort keys(%{ $$RUN{partyList} })); #sort keys(%Effects));
 
 
 	$effectsdialog->Button(-text => "Snapshot",
@@ -2324,7 +2213,7 @@ sub html_summary {
 	print SAVEFILE "<h1>Party members</h1>";
 
 	print SAVEFILE "<ul>";
-	foreach my $id (sort (keys(%party))) {
+	foreach my $id (sort (keys(%{$$RUN{partyList}}))) {
 	    print SAVEFILE "<li> <a href=\"#$id\">$id</a>";
 	}
 	print SAVEFILE "</ul>";
@@ -2334,30 +2223,30 @@ sub html_summary {
 	print SAVEFILE "<table border=1>";
 	print SAVEFILE "<tr><th bgcolor=lightgray>Name</th><th bgcolor=lightgray>Kills</th><th bgcolor=lightgray>Deaths</th><th bgcolor=lightgray>Damage taken</th><th bgcolor=lightgray>Damage done</th>";
 	print SAVEFILE "<th bgcolor=lightgray title=\"Overall hit percentage and 95% confidence interval\">Hit \%</th><th bgcolor=lightgray title=\"Overall dodge percentage and 95% confidence interval\">Dodge \%</th><th bgcolor=lightgray title=\"Number of swings against hell monsters with nasty party kb\">Holla score</th></tr>";
-	foreach my $id (sort (keys(%party))) {	    
+	foreach my $id (sort (keys(%{$$RUN{partyList}}))) {	    
 	    print SAVEFILE "<tr><td>$id</td>";
-	    print SAVEFILE "<td align=right>$kills{$id}</td>";
-	    print SAVEFILE "<td align=right>$deaths{$id}</td>";
-	    print SAVEFILE "<td align=right>$damage_taken{$id}</td>";
-	    print SAVEFILE "<td align=right>$damage_done{$id}</td>";
-	    if (exists($hitpercentage{$id})) {
-		my $ptilde = ($hits{$id}+2) / ($swings{$id}+4);
-		my $se = sqrt($ptilde*(1-$ptilde)/($swings{$id}+4));
-		print SAVEFILE "<td align=left>$hitpercentage{$id} (" . int(($ptilde-1.96*$se)*1000)/10 . " - " . int(($ptilde+1.96*$se)*1000)/10 .")</td>";
+	    print SAVEFILE "<td align=right>$$runData{$id}{kills}</td>";
+	    print SAVEFILE "<td align=right>$$runData{$id}{deaths}</td>";
+	    print SAVEFILE "<td align=right>$$runData{$id}{damIn}</td>";
+	    print SAVEFILE "<td align=right>$$runData{$id}{damOut}</td>";
+	    if (exists($$runData{$id}{hitPercentage})) {
+		my $ptilde = ($$runData{$id}{hits}+2) / ($$runData{$id}{swingsOut}+4);
+		my $se = sqrt($ptilde*(1-$ptilde)/($$runData{$id}{swingsOut}+4));
+		print SAVEFILE "<td align=left>$$runData{$id}{hitPercentage} (" . int(($ptilde-1.96*$se)*1000)/10 . " - " . int(($ptilde+1.96*$se)*1000)/10 .")</td>";
 	    }
 	    else {
 		print SAVEFILE "<td align=center>-</td>";
 	    }
-	    if (exists($dodge{$id}) & exists($swingsagainst{$id})) {
-		my $dodgechance = 100*($dodge{$id} / $swingsagainst{$id});
-		my $ptilde = ($dodge{$id}+2) / ($swingsagainst{$id}+4);
-		my $se = sqrt($ptilde*(1-$ptilde)/($swingsagainst{$id}+4));
+	    if (exists($$runData{$id}{dodge}) & exists($$runData{$id}{swingsIn})) {
+		my $dodgechance = 100*($$runData{$id}{dodge} / $$runData{$id}{swingsIn});
+		my $ptilde = ($$runData{$id}{dodge}+2) / ($$runData{$id}{swingsIn}+4);
+		my $se = sqrt($ptilde*(1-$ptilde)/($$runData{$id}{swingsIn}+4));
 		printf SAVEFILE "<td align=left>%5.2f (%5.2f - %5.2f)</td>", $dodgechance, int(($ptilde-1.96*$se)*1000)/10, int(($ptilde+1.96*$se)*1000)/10;
 	    }
 	    else {
 		print SAVEFILE "<td align=center>-</td>";
 	    }
-	    print SAVEFILE "<td align=right>" . (exists($badtooncounter{$id}) ? $badtooncounter{$id} : " -") . "</td></tr>";
+	    print SAVEFILE "<td align=right>" . ($$runData{$id}{badToonHits} // " -") . "</td></tr>";
 	}
 	print SAVEFILE "</table>";
 	
@@ -2374,8 +2263,12 @@ sub html_summary {
 	print SAVEFILE "<hr>";
 	print SAVEFILE "<h1>Detailed report</h1>\n";
 	my %critterlist;
-	@critterlist{(keys(%party), keys(%kills), keys(%deaths))} = ();
+	#@critterlist{(keys(%{$$RUN{partyList}}), keys(%kills), keys(%deaths))} = ();
+	@critterlist{(keys(%{$runData}))} = ();
 	foreach $_ (sort keys %critterlist) {
+
+	    next if !$_; # TODO: this shouldn't happen - find out why
+
 	    print SAVEFILE "<div class=\"combatant\"><h3><a name=\"$_\">$_</a></h3>\n";
 	    print SAVEFILE "<table width=100%>";
 	    printf SAVEFILE "<tr valign=top><td width=15%% valign=top>Max AB: %3d<br>", exists($AB{$_}) ? $AB{$_} : 0;
@@ -2389,13 +2282,12 @@ sub html_summary {
 	    if (exists($TR{$_})) {
 		print SAVEFILE "Max TR: $TR{$_}<br>";
 	    }
-	    printf SAVEFILE "Max conceal: %4.0f<br>", (exists($conceal{$_}) ? $conceal{$_} : 0);
-	    $kills{$_} = 0 if (!exists($kills{$_}));
-	    print SAVEFILE "Kills: $kills{$_}<br>";
-	    printf SAVEFILE "Deaths: %4d<br>", (exists($deaths{$_}) ? $deaths{$_} : 0);
+	    printf SAVEFILE "Max conceal: %4.0f<br>", ($$runData{$_}{conceal} // 0);
+	    print SAVEFILE "Kills: $$runData{$_}{kills}<br>";
+	    printf SAVEFILE "Deaths: %4d<br>", ($$runData{$_}{deaths} // 0);
 
 	    printf SAVEFILE "<p><p>";
-	    printf SAVEFILE "Swings/hits/crits dealt:<br> %4.0f/%4.0f/%4.0f<br>", (exists($swings{$_}) ? $swings{$_} : 0), (exists($hits{$_}) ? $hits{$_} : 0), (exists($crits{$_}) ? $crits{$_} : 0);
+	    printf SAVEFILE "Swings/hits/crits dealt:<br> %4.0f/%4.0f/%4.0f<br>", ($$runData{$_}{swingsOut} // 0), ($$runData{$_}{hits} // 0), ($$runData{$_}{crits} // 0);
 
 	    print SAVEFILE "<p><div class=\"vulnBox\"><b>Max saves:</b><br>";
 	    if (exists($Saves{$_})) {
@@ -2419,12 +2311,12 @@ sub html_summary {
 		print SAVEFILE "-<br></div>";
 	    }
 
-	    print SAVEFILE "<p><div class=\"immBox\"><b>Immunities:</b><font size=-2><br>", (exists($immune{$_}) ? join(", ", sort (keys(%{$immune{$_}}))) : "-") . "</font></div>";
-	    printf SAVEFILE "<p><div class=\"vulnBox\" title=\"The box lists the most common damage types that were taken\"><b>Damage taken:</b><br>%s<br></div>", exists($damage_takenstr{$_}) ? join("<br>",split(/, /, $damage_takenstr{$_})) : "";
+	    print SAVEFILE "<p><div class=\"immBox\"><b>Immunities:</b><font size=-2><br>", (exists($$runData{$_}{immuneTo}) ? join(", ", sort (keys(%{$$runData{$_}{immuneTo}}))) : "-") . "</font></div>";
+	    printf SAVEFILE "<p><div class=\"vulnBox\" title=\"The box lists the most common damage types that were taken\"><b>Damage taken:</b><br>%s<br></div>", exists($$runData{$_}{damInStr}) ? join("<br>",split(/, /, $$runData{$_}{damInStr})) : "";
 
-	    printf SAVEFILE "<p><div class=\"vulnBox\" title=\"The box lists the elements/exotics that this mob might be immune to. Note this is influenced by non-resistable damage\"><b>Damage immunity:</b><br>%s<br></div>", (exists($elemental_immunities{$_}) ? join("<br>",sort(keys(%{$elemental_immunities{$_}}))) : "");
+	    printf SAVEFILE "<p><div class=\"vulnBox\" title=\"The box lists the elements/exotics that this mob might be immune to. Note this is influenced by non-resistable damage\"><b>Damage immunity:</b><br>%s<br></div>", (exists($$HGmobs{$_}{immsEl}) ? join("<br>",sort(keys(%{$$HGmobs{$_}{immsEl}}))) : "");
 	    
-	    printf SAVEFILE "<p><div class=\"vulnBox\" title=\"Guesstimate of damage types done when you are hit by this PC/monster\"><b>Damage types dealt:</b><br>%s<br></div>", exists($DamageTypesDealt{$_}) ? join("<br>", keys %{ $DamageTypesDealt{$_}} ) : "No clue";
+	    printf SAVEFILE "<p><div class=\"vulnBox\" title=\"Guesstimate of damage types done when you are hit by this PC/monster\"><b>Damage types dealt:</b><br>%s<br></div>", exists($$runData{$_}{damOutTypes}) ? join("<br>", keys %{ $$runData{$_}{damOutTypes} } ) : "No clue";
 
 	    if (exists($AbilityChecks{$_})) {
 		print SAVEFILE  "<p title=\"Notice these can be influenced by gear\"><b>Ability Checks:</b><br>";
@@ -2445,46 +2337,46 @@ sub html_summary {
 	    print SAVEFILE "<font size=\"-1\">";
 	    print SAVEFILE "<table width=100% border=1><tr><th width=40% bgcolor=lightgray>Name</th><th bgcolor=lightgray width=6%>Kills</th><th bgcolor=lightgray width=10%>Swings/hits/crits</th><th bgcolor=lightgray width=25%>Hit %</th><th bgcolor=lightgray>Total damage</th></tr>";
 	    my %defenderlist;
-	    @defenderlist{(keys(%{$Kills{$_}}), keys(%{$TotalDamage{$_}}), keys(%{$Swings{$_}}))}  = ();
+	    @defenderlist{(keys(%{$$RUN{killsEnemy}{$_}}), keys(%{$$RUN{damEnemy}{$_}}), keys(%{$$RUN{swingsAt}{$_}}))}  = ();
 	    foreach my $defender (sort keys %defenderlist) {
 		print SAVEFILE "<tr><td>$defender</td>";
-		print SAVEFILE "<td align=right>" . (exists($Kills{$_}{$defender}) ? $Kills{$_}{$defender} : "") . "</td>";
+		print SAVEFILE "<td align=right>" . ($$RUN{killsEnemy}{$_}{$defender} // "") . "</td>";
 
 		print SAVEFILE "<td width=10%><table border=0><tr>";
-		printf SAVEFILE "<td width=8%% align=left>%s</td>", (exists($Swings{$_}{$defender}) ? $Swings{$_}{$defender} : "");
-		printf SAVEFILE "<td width=5%% align=center>%s</td>", (exists($Hits{$_}{$defender}) ? $Hits{$_}{$defender} : "");
-		printf SAVEFILE "<td width=5%% align=right>%s</td>", (exists($Crits{$_}{$defender}) ? $Crits{$_}{$defender} : "");
+		printf SAVEFILE "<td width=8%% align=left>%s</td>", ($$RUN{swingsAt}{$_}{$defender} // "");
+		printf SAVEFILE "<td width=5%% align=center>%s</td>", ($$RUN{hitsEnemy}{$_}{$defender} // "");
+		printf SAVEFILE "<td width=5%% align=right>%s</td>", ($$RUN{critsEnemy}{$_}{$defender} // "");
 		print SAVEFILE "</tr></table></td>";
 
 
 		print SAVEFILE "<td width=15%><table border=0><tr><td width=5% align=left>";
 		
-		if (exists($Swings{$_}{$defender}) && $Swings{$_}{$defender}>0) {
-		    $Hits{$_}{$defender} = 0 if (!exists($Hits{$_}{$defender}));
+		if (exists($$RUN{swingsAt}{$_}{$defender}) && $$RUN{swingsAt}{$_}{$defender}>0) {
+		    $$RUN{hitsEnemy}{$_}{$defender} = 0 if (!exists($$RUN{hitsEnemy}{$_}{$defender}));
 
-		    my $ptilde = ($Hits{$_}{$defender}+2) / ($Swings{$_}{$defender}+4);
-		    my $se = sqrt($ptilde*(1-$ptilde)/($Swings{$_}{$defender}+4));
-		    print SAVEFILE int(1000*($Hits{$_}{$defender}/$Swings{$_}{$defender}))/10 . "%</td><td align=center width=15%>(" . int(($ptilde-1.96*$se)*1000)/10 . " - " . int(($ptilde+1.96*$se)*1000)/10 .")</td>";
+		    my $ptilde = ($$RUN{hitsEnemy}{$_}{$defender}+2) / ($$RUN{swingsAt}{$_}{$defender}+4);
+		    my $se = sqrt($ptilde*(1-$ptilde)/($$RUN{swingsAt}{$_}{$defender}+4));
+		    print SAVEFILE int(1000*($$RUN{hitsEnemy}{$_}{$defender}/$$RUN{swingsAt}{$_}{$defender}))/10 . "%</td><td align=center width=15%>(" . int(($ptilde-1.96*$se)*1000)/10 . " - " . int(($ptilde+1.96*$se)*1000)/10 .")</td>";
 		}
 		else {
 		    print SAVEFILE "</td><td></td>";		    
 		}
 		print SAVEFILE "<td align=right width=5%>";
-		if (exists($Swings{$_}{$defender}) && $Swings{$_}{$defender}>0) {
-		    $Conceals{$_}{$defender} = 0 if (!exists($Conceals{$_}{$defender}));
-		    $Hits{$_}{$defender} = 0 if (!exists($Hits{$_}{$defender}));
-		    if ($Swings{$_}{$defender} == $Conceals{$_}{$defender}) {
+		if (exists($$RUN{swingsAt}{$_}{$defender}) && $$RUN{swingsAt}{$_}{$defender}>0) {
+		    $$RUN{missConcealed}{$_}{$defender} = 0 if (!exists($$RUN{missConcealed}{$_}{$defender}));
+		    $$RUN{hitsEnemy}{$_}{$defender} = 0 if (!exists($$RUN{hitsEnemy}{$_}{$defender}));
+		    if ($$RUN{swingsAt}{$_}{$defender} == $$RUN{missConcealed}{$_}{$defender}) {
 			print SAVEFILE "0"
 		    }
 		    else {
-			print SAVEFILE int(1000*$Hits{$_}{$defender} / ($Swings{$_}{$defender} - $Conceals{$_}{$defender}))/10 . "%";
+			print SAVEFILE int(1000*$$RUN{hitsEnemy}{$_}{$defender} / ($$RUN{swingsAt}{$_}{$defender} - $$RUN{missConcealed}{$_}{$defender}))/10 . "%";
 		    }
 		}
 		print SAVEFILE "</td>";
 		print SAVEFILE "</tr></table>";
 
 
-		print SAVEFILE "<td align=right>" . (exists($TotalDamage{$_}{$defender}) ? $TotalDamage{$_}{$defender} : "") . "</td></tr>"
+		print SAVEFILE "<td align=right>" . ($$RUN{damEnemy}{$_}{$defender} // "") . "</td></tr>"
 		
 	    }
 	    print SAVEFILE "</table>";
@@ -2493,12 +2385,12 @@ sub html_summary {
 	    print SAVEFILE "<p><b>Damage received:</b><p>";
 	    print SAVEFILE "<font size=\"-1\">";
 	    print SAVEFILE "<table width=100% border=1><tr><th width=40% bgcolor=lightgray>Name</th><th bgcolor=lightgray width=6%>Deaths by</th><th bgcolor=lightgray width=10%>Attacks by</th><th bgcolor=lightgray width=25%>Hit %</th><th bgcolor=lightgray>Total damage</th></tr>";	    
-            foreach my $id (sort keys %Kills) {
-		if ( exists($Kills{$id}{$_}) || exists($TotalDamage{$id}{$_}) || exists($Swings{$id}{$_})) {
-		    print SAVEFILE "<tr><td>$id</td><td align=right>" . (exists($Kills{$id}{$_}) ? $Kills{$id}{$_} : "") . "</td>";
-		    print SAVEFILE "<td align=right>" . (exists($Swings{$id}{$_}) ? $Swings{$id}{$_} : "") . "</td>";
-		    printf SAVEFILE "<td align=right>%5.1f</td>", ((exists($Swings{$id}{$_}) && exists($Hits{$id}{$_})) ? 100*($Hits{$id}{$_}/$Swings{$id}{$_}) : 0);
-		    print SAVEFILE "<td align=right>" . (exists($TotalDamage{$id}{$_}) ? $TotalDamage{$id}{$_} : "") . "</td></tr>";
+            foreach my $id (sort keys %{ $$RUN{killsEnemy} }) {
+		if ( exists($$RUN{killsEnemy}{$id}{$_}) || exists($$RUN{damEnemy}{$id}{$_}) || exists($$RUN{swingsAt}{$id}{$_})) {
+		    print SAVEFILE "<tr><td>$id</td><td align=right>" . ($$RUN{killsEnemy}{$id}{$_} // "") . "</td>";
+		    print SAVEFILE "<td align=right>" . ($$RUN{swingsAt}{$id}{$_} // "") . "</td>";
+		    printf SAVEFILE "<td align=right>%5.1f</td>", ((exists($$RUN{swingsAt}{$id}{$_}) && exists($$RUN{hitsEnemy}{$id}{$_})) ? 100*($$RUN{hitsEnemy}{$id}{$_}/$$RUN{swingsAt}{$id}{$_}) : 0);
+		    print SAVEFILE "<td align=right>" . ($$RUN{damEnemy}{$id}{$_} // "") . "</td></tr>";
 		}
 	    }
 	    print SAVEFILE "</table>";
@@ -2531,11 +2423,11 @@ sub save_inventories {
 	open(SAVEFILE, ">$file");
 
 	if ($extension eq "txt") {
-	    foreach my $container (sort keys (%Gear)) {
+	    foreach my $container (sort keys (%{ $YAL{gear} })) {
 		print SAVEFILE "Container ($container):\n=====================\n\n";
-		foreach my $item (sort keys (%{$Gear{$container}})) {
+		foreach my $item (sort keys (%{$YAL{gear}{$container}})) {
 		    print SAVEFILE "  $item";
-		    print SAVEFILE " x$Gear{$container}{$item}" if ($Gear{$container}{$item}>1);
+		    print SAVEFILE " x$YAL{gear}{$container}{$item}" if ($YAL{gear}{$container}{$item}>1);
 		    print SAVEFILE "\n";
 		}
 		print SAVEFILE "\n\n";
@@ -2554,19 +2446,19 @@ sub save_inventories {
 
 	    print SAVEFILE "<h1>Container summary</h1>";
 	    print SAVEFILE "<ul>";
-	    foreach my $container (sort keys (%Gear)) {	
+	    foreach my $container (sort keys (%{ $YAL{gear} })) {	
 		print SAVEFILE "<li> <a href=\"#$container\">$container</a>";
 	    }
 	    print SAVEFILE "</ul>";
 	    print SAVEFILE "<hr>";
 	    print SAVEFILE "<h1>Detailed listing</h1>";
-	    foreach my $container (sort keys (%Gear)) {		    
+	    foreach my $container (sort keys (%{ $YAL{gear} })) {		    
 		print SAVEFILE "<div class=\"combatant\"><h3><a name=\"$container\">$container</a></h3>\n";
-		foreach my $item (sort keys (%{$Gear{$container}})) {
+		foreach my $item (sort keys (%{$YAL{gear}{$container}})) {
 		    $_ = $item;
 		    s/ /_/g;
 		    print SAVEFILE "<a href=\"http://www.hgwiki.com/wiki/index.php?title=$_\">$item</a>";
-		    print SAVEFILE " x$Gear{$container}{$item}" if ($Gear{$container}{$item}>1);
+		    print SAVEFILE " x$YAL{gear}{$container}{$item}" if ($YAL{gear}{$container}{$item}>1);
 		    print SAVEFILE "<br>";		    
 		}
 		print SAVEFILE "</div>\n";
@@ -2640,12 +2532,13 @@ sub runlog_save_buffer {
 
 sub hg_run_init {
     %emptyRun = (
+	# who is playing
 	data => {},
 	name => 'current',
 	toon => '', # name of our current toon
 	player => '', # our login-name
-	toonlist => {}, # toons - potential party members
-	partylist => {}, # current party members
+	toonList => {}, # toons - potential party members
+	partyList => {}, # current party members
 	# combat data
 	damIn => 0, # damage done to party members
 	damOut => 0, # damage done by party members
@@ -2666,11 +2559,14 @@ sub hg_run_init {
 	srvBaseUptime => 0, # uptime read from greeting
 	srvBaseTS => 0, # at which time (from log) did we catch the uptime msg
 	logFirstTS => 0, # first timestamp we've seen in the log
+	srvModDate => '', # date of module build
 	movements => [], # waypoints
 	cMap => '', # current map
 	cArea => '', # current area
 	lastRun => '', # which non-ignore area == run were we last in?
+	# misc stuff
 	totalxp => 0,
+	dam_taken_detail => {}, # for immunity/vulnerability calcs
     );
 }
 
@@ -2696,25 +2592,54 @@ sub hg_run_reset {
     $runData = $$RUN{data}; # run data of individual actors (mobs or party members)}
 }
 
+sub hg_run_new_actor {
+    my ($name, $isPM) = @_;
+    my $a = {
+	# combat - outgoing
+	kills => 0,
+	lastKilled => '',
+	damOut => 0, # outgoing damage total
+	    # damOutTypes => {}, # flags for dealt damage types
+	swingsOut => 0,
+	hits => 0,
+	crits => 0,
+	# combat - incoming
+	deaths => 0,
+	lastKiller => '',
+	damIn => 0,
+	damInStr => '', # for immunity/vulnerability calcs
+	swingsIn => 0,
+	dodge => 0,
+	# misc stuff for party members
+	badToonHits => 0, # Counts the number of attacks on Mammon's tears, infernal machines etc. Purely for pointing the finger at someone
+	hitPercentage => '',
+	# props for data collecting
+	conceal => 0,
+	    #immuneTo => {},
+	    #effects => {},
+    };
+    $$RUN{data}{$name} = $a;
+    # TODO: check if $name is partymember, known mob, ... or unknown thing
+    return $a;
+}
+
 #
 # Function return 1 if the name is considered a party member and 0 otherwise
 #
 sub partymember {
     my $id = shift @_;
-    return 1 if (exists($deaths{$id}) || $id eq $$RUN{toon});
-    return 0;
+    return $$RUN{partyList}{$id} // 0;
+    #return 1 if (exists($deaths{$id}) || $id eq $$RUN{toon});
+    #return 0;
 }
 
 
 sub new_party_member {
-    my $id = shift @_;    
-    $deaths{$id} = 0 if !exists($deaths{$id});
-    $kills{$id} = 0 if !exists($kills{$id});
-    $damage_done{$id} = 0 if !exists($damage_done{$id});
-    $swings{$id} = 0 if !exists($swings{$id});
-    $badtooncounter{$id} = 0 if !exists($badtooncounter{$id});
-    $damage_taken{$id} = 0 if !exists($damage_taken{$id});
-    $party{$id} = 1;
+    my $id = shift @_;
+    # TODO: check for and do something about leading whitespace
+    $$RUN{partyList}{$id} = 1;
+    $$RUN{toonList}{$id} = 1;
+    hg_run_new_actor($id, 1) if !$$runData{$id};
 }
 
 #
@@ -2722,12 +2647,7 @@ sub new_party_member {
 #
 sub toon_kills {
     my $toon = shift;
-    if (exists($kills{$toon})) {
-	return ($kills{$toon});
-    }
-    else {
-	return 0 ;
-    }
+    return $$runData{$toon}{kills} // 0;
 }
 
 
@@ -2739,7 +2659,7 @@ sub configure_fonts {
     foreach my $colour (@COLS) {
 	$YW{damage_out}->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]);
-	$YW{damage_out}->tagConfigure($colour.'Heal', -background => "$colour", foreground => 'black');
+	$YW{damage_out}->tagConfigure($colour.'HL', -background => "$colour", foreground => 'black');
 	$YW{damage_inc}->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]);
 	$YW{imms}->tagConfigure($colour, -foreground => "$colour",
@@ -2765,14 +2685,14 @@ sub configure_fonts {
 sub calculate_vulnerabilities {
     my(@damdet);
     my(%damnum);
-    for my $detail (keys %dam_taken_detail) {
+    for my $detail (keys %{ $$RUN{dam_taken_detail} }) {
 	my ($mob, $dtype) = split(/ :d: /, $detail);
-	my $tdam = $damage_taken{$mob};
-	my $cdam = $dam_taken_detail{$detail};
+	my $tdam = $$runData{$mob}{damIn};
+	my $cdam = $$RUN{dam_taken_detail}{$detail};
 
 	# If a mob only received 0 damage from element then possibly immune
 	if ($cdam==0) {
-	    $elemental_immunities{$mob}{$dtype}=1;	    
+	    $$HGmobs{$mob}{immsEl}{$dtype}=1;	    
 	}
 	next unless $tdam > 0;
 	next unless (10 * $cdam) >= $tdam; # Only show if >= 10%
@@ -2783,9 +2703,9 @@ sub calculate_vulnerabilities {
 	my ($pstr, $dtype, $mob) = split(/ /, $outline, 3);
 	$damnum{$mob}++;
 	if ($damnum{$mob} == 1) {
-	    $damage_takenstr{$mob} = "$pstr\% $dtype";
+	    $$runData{$mob}{damInStr} = "$pstr\% $dtype";
 	} elsif ($damnum{$mob} < 4) {
-	    $damage_takenstr{$mob} .= ", $pstr\% $dtype";
+	    $$runData{$mob}{damInStr} .= ", $pstr\% $dtype";
 	}
     }    
 }
@@ -2804,11 +2724,15 @@ sub parse_old_log_file {
 	my $location = tell(LOGFILE);
 
 	$YAL{currentlogfile} = $file;
+	$YAL{isCurrent} = 0;
+
 	open (LOGFILE, $file);
 	parse_log_file();
 	close(LOGFILE);
 	
 	$YAL{currentlogfile} = $originalfile;
+	$YAL{isCurrent} = ($originalfile =~ /nwclientLog\d\.txt/);
+
 	open (LOGFILE, $YAL{currentlogfile});
 	seek(LOGFILE, $location, 0);
 
@@ -3016,13 +2940,17 @@ sub append_dmg_line {
 	    }
 	    if (defined($damage_type->{$_})) {
 		if ($heals && $heals->{$_}) {
-		    $widget -> insert('end', $damage_type->{$_}, "$COLOURS{$_}Heal");
+		    $widget -> insert('end', $damage_type->{$_}, "$COLOURS{$_}HL");
 		    $widget -> insert('end', "\t", "$COLOURS{$_}");
 		} else {
 		    $widget -> insert('end', $damage_type->{$_} . "\t", "$COLOURS{$_}");
 		}
 	    } 
 	    else {
+		if ($heals && $heals->{$_}) {
+		    $widget -> insert('end', "-", "$COLOURS{$_}");
+		}
+		# TODO: elsif (mob takes dmg)
 		$widget -> insert('end', "\t", "$COLOURS{$_}");
 	    }
 	}
@@ -3053,8 +2981,29 @@ sub yal_init {
 	logfile_info => "?", # info-string about current logfile
 	catchPartyWho => 0, # autofill party when we get player list of our server?
 	myServerWho => 0, # are next items in !who output from our server?
+	isCurrent => 1, # are we parsing direct nwn output or old logfile
+	effectTimers => {}, # the key is the name of the effect the value is the duration of the effect
+	effectTimersMax => {}, # stores the values from the effects command so when you cast a spell it shows up in your effects
+	timerGSmite => [], # timers for greater smite
+	timerGSanct => [], # timers for greater sanctuaray
     );
 
+    # prepare structure to store HG base data in
+    %HGdata = (
+	mob	=> {}, # the enemies we encounter
+	area	=> {}, # area (containing maps and mobs) we know about
+	map	=> {},
+	toon	=> {}, # base data of toons (own and party)
+	new	=> {}, # remember things we didn't know about so far
+    );
+    # set some references for quicker access
+    $HGmobs = $HGdata{'mob'};
+    $HGmaps = $HGdata{'map'};
+    $HGareas = $HGdata{'area'};
+    $HGtoons = $HGdata{'toon'};
+    $HGnew = $HGdata{'new'};
+
+    # prepare structure to save run data in
     hg_run_init();
     %currentRun = %emptyRun;
     hg_run_reset();
@@ -3074,12 +3023,12 @@ sub hgdata_import_xml {
 	s/^\s*(.*?)\s*$/$1/;
 	next if !$_; # line empty now
 	if (/<(\/?)(\w+)\s*(.*?)\s*(\/?)>/) {
-	    my ($sl1, $cTag, $atts, $sl2) = ($1, $2, $3, $4);
-	    my %tag = (tag => $cTag);
+	    my ($sl1, $tagName, $atts, $sl2) = ($1, $2, $3, $4);
+	    my %tag = (tag => $tagName);
 
 	    if ($sl1) { # closing tag
 		my $oTag = pop @otags;
-		die "Invalid xml file - closing tag doesn't match opening tag ($oTag->{tag}/$cTag)\n" if $oTag->{'tag'} ne $cTag;
+		die "Invalid xml file - closing tag doesn't match opening tag ($oTag->{tag}/$tagName)\n" if $oTag->{'tag'} ne $tagName;
 		$ctTag = $otags[-1];
 		next; # closing tag has no attributes
 	    }
@@ -3087,57 +3036,57 @@ sub hgdata_import_xml {
 	    # extract name if defined
 	    $atts =~ s/name=\"(.*?)\"//;
 	    my $cName = $1 // ''; # current name = value name attribute
-	    if ($cName && exists($HGdata{$cTag}{$cName})) {
+	    if ($cName && exists($HGdata{$tagName}{$cName})) {
 		# duplicate - probably mob in another area
 		next;
 	    }
 
 	    # get rest of attributes
-	    my %cObj = (); # current object
+	    my $cObj = {}; # current object
 	    while ($atts =~ s/^\s*(\w+)=\"(.*?)\"//) {
-		$cObj{$1} = $2;
+		$$cObj{$1} = $2;
 	    }
 
 	    # save object for quick access
 	    if ($cName) {
-		$HGdata{$cTag}{$cName} = \%cObj;
+		$HGdata{$tagName}{$cName} = $cObj;
 		# and put a ref in container (if we have a named container)
-		$ctTag->{'obj'}{$cTag}{$cName} = \%cObj if $ctTag && $ctTag->{'obj'};
+		$ctTag->{'obj'}{$tagName}{$cName} = $cObj if $ctTag && $ctTag->{'obj'};
 	    }
 
-	    if ($cTag eq 'map') {
-		$cObj{'area'} = $ctTag->{'name'}; # container is area, take name of container
+	    if ($tagName eq 'map') {
+		$$cObj{'area'} = $ctTag->{'name'}; # container is area, take name of container
 	    }
-	    elsif ($cTag eq 'mob') {
-		if (exists($cObj{'race'})) {
-		    $cObj{'race'} =~ /^(\w)(\w)\w+( (\w)\w+)?$/;
-		    $cObj{'race_short'} = $1 . (defined($4) ? $4 : $2);
+	    elsif ($tagName eq 'mob') {
+		if (exists($$cObj{'race'})) {
+		    $$cObj{'race'} =~ /^(\w)(\w)\w+( (\w)\w+)?$/;
+		    $$cObj{'race_short'} = $1 . (defined($4) ? $4 : $2);
 		}
-		if (exists($cObj{'type'})) {
-		    $cObj{'type'} =~ /^(\w)\w+( (\d))?$/;
-		    $cObj{'type_short'} = $1;
-		    $cObj{'type_short'} .= $3 if defined($3);
+		if (exists($$cObj{'type'})) {
+		    $$cObj{'type'} =~ /^(\w)\w+( (\d))?$/;
+		    $$cObj{'type_short'} = $1;
+		    $$cObj{'type_short'} .= $3 if defined($3);
 		}
-		if (exists($cObj{'qual'}) && ($cObj{'qual'} =~ /^(\d)\.0$/)) {
-		    $cObj{'qual'} = $1; # strip ".0" from end of qual if it's there
+		if (exists($$cObj{'qual'}) && ($$cObj{'qual'} =~ /^(\d)\.0$/)) {
+		    $$cObj{'qual'} = $1; # strip ".0" from end of qual if it's there
 		}
-		if (exists($cObj{'heals'})) {
-		    my ($el, $proc) = split(/ /, $cObj{'heals'});
-		    $cObj{'heal'}{$el} = $proc;
+		if (exists($$cObj{'heals'})) {
+		    my ($el, $proc) = split(/ /, $$cObj{'heals'});
+		    $$cObj{'heal'}{$el} = $proc;
 		}
-		if (exists($cObj{'syn'})) { # build translation hash if we have a syn-attribute
-		    $HGdata{'syn'}{$cObj{'syn'}} = $cName;
+		if (exists($$cObj{'syn'})) { # build translation hash if we have a syn-attribute
+		    $HGdata{'syn'}{$$cObj{'syn'}} = $cName;
 		}
 	    }
 
 	    if (!$sl2) { # opening tag
-		die "Not a HG xml file\n" if ($#otags < 0) && ($cTag ne 'hg');
-		if (($cTag eq 'version') && /<number>(.*)<\/number>/) {
+		die "Not a HG xml file\n" if ($#otags < 0) && ($tagName ne 'hg');
+		if (($tagName eq 'version') && /<number>(.*)<\/number>/) {
 		    $HGdata{'version'} = $1;
 		    next;
 		}
 		$tag{'name'} = $cName if $cName;
-		$tag{'obj'} = \%cObj;
+		$tag{'obj'} = $cObj;
 		push @otags, \%tag;
 		$ctTag = \%tag; # set container for processing children
 	    }
@@ -3154,7 +3103,4 @@ sub hgdata_import_xml {
     }
     #delete $HGdata{'ignore'};
 
-    $HGmobs = $HGdata{'mob'};
-    $HGmaps = $HGdata{'map'};
-    $HGareas = $HGdata{'area'};
 }
