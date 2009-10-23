@@ -54,8 +54,8 @@
 
     <mob name="Brachina" race="Outsider" qual="2.0" />
     <mob name="Brachina Seductrix" race="Outsider" paragon="1" qual="2.5" />
-    <mob name="Superior Brachina Seductrix" race="Outsider" paragon="2" heals="Pos 200%" qual="2.5" />
-    <mob name="Elite Brachina Seductrix" race="Outsider" paragon="3" heals="Pos 300%" qual="2.5" />
+    <mob name="Superior Brachina Seductrix" race="Outsider" paragon="2" heals="Positive 200%" qual="2.5" />
+    <mob name="Elite Brachina Seductrix" race="Outsider" paragon="3" heals="Positive 300%" qual="2.5" />
 
     <mob name="Brood Serpent" race="Outsider" qual="3.0" />
     <mob name="Firstborn" race="Outsider" paragon="1" qual="4.0" />
@@ -94,8 +94,8 @@
 
     <mob name="Excruciarch" race="Outsider" />
     <mob name="Excruciarch Inquisitor" race="Outsider" paragon="1" />
-    <mob name="Superior Excruciarch Inquisitor" race="Outsider" paragon="2" heals="Neg 200%" />
-    <mob name="Elite Excruciarch Inquisitor" race="Outsider" paragon="3" heals="Neg 300%" />
+    <mob name="Superior Excruciarch Inquisitor" race="Outsider" paragon="2" heals="Negative 200%" />
+    <mob name="Elite Excruciarch Inquisitor" race="Outsider" paragon="3" heals="Negative 300%" />
 
     <mob name="Falxugon" race="Outsider" qual="2.0" />
     <mob name="Vexiarch" race="Outsider" paragon="1" qual="2.0" />
@@ -109,13 +109,13 @@
 
     <mob name="Hamatula" race="Outsider" />
     <mob name="Hamatula Scourge" race="Outsider" paragon="1" />
-    <mob name="Superior Hamatula Scourge" race="Outsider" paragon="2" heals="Neg 400%" />
-    <mob name="Elite Hamatula Scourge" race="Outsider" paragon="3" heals="Neg 600%" />
+    <mob name="Superior Hamatula Scourge" race="Outsider" paragon="2" heals="Negative 400%" />
+    <mob name="Elite Hamatula Scourge" race="Outsider" paragon="3" heals="Negative 600%" />
 
     <mob name="Hell Hound" race="Animal" />
     <mob name="Cereberean Hound" race="Animal" paragon="1" />
-    <mob name="Superior Cereberean Hound" race="Animal" paragon="2" heals="Elec 400%" />
-    <mob name="Elite Cereberean Hound" race="Animal" paragon="3" heals="Elec 600%" />
+    <mob name="Superior Cereberean Hound" race="Animal" paragon="2" heals="Electrical 400%" />
+    <mob name="Elite Cereberean Hound" race="Animal" paragon="3" heals="Electrical 600%" />
 
     <mob name="Hell Leech" race="Animal" />
     <mob name="Cloacal Leech" race="Animal" paragon="1" />
@@ -149,8 +149,8 @@
 
     <mob name="Kocrachon" race="Outsider" />
     <mob name="Infestiarch" race="Outsider" paragon="1" />
-    <mob name="Superior Infestiarch" race="Outsider" paragon="2" heals="Neg 400%" />
-    <mob name="Elite Infestiarch" race="Outsider" paragon="3" heals="Neg 600%" />
+    <mob name="Superior Infestiarch" race="Outsider" paragon="2" heals="Negative 400%" />
+    <mob name="Elite Infestiarch" race="Outsider" paragon="3" heals="Negative 600%" />
 
     <mob name="Kyton" race="Outsider" />
     <mob name="Kyton Legionnaire" race="Outsider" paragon="1" />
@@ -169,18 +169,18 @@
 
     <mob name="Maelephant" race="Outsider" />
     <mob name="Unbound" race="Outsider" paragon="1" />
-    <mob name="Superior Unbound" race="Outsider" paragon="2" heals="Pos 400%" />
-    <mob name="Elite Unbound" race="Outsider" paragon="3" heals="Pos 600%" />
+    <mob name="Superior Unbound" race="Outsider" paragon="2" heals="Positive 400%" />
+    <mob name="Elite Unbound" race="Outsider" paragon="3" heals="Positive 600%" />
 
     <mob name="Malebranche" race="Outsider" qual="3.0" />
     <mob name="Ravening Malebranche" race="Outsider" paragon="1" qual="4.0" />
-    <mob name="Superior Ravening Malebranche" race="Outsider" paragon="2" heals="Elec 400%" qual="4.5" />
-    <mob name="Elite Ravening Malebranche" race="Outsider" paragon="3" heals="Elec 600%" qual="4.5" />
+    <mob name="Superior Ravening Malebranche" race="Outsider" paragon="2" heals="Electrical 400%" qual="4.5" />
+    <mob name="Elite Ravening Malebranche" race="Outsider" paragon="3" heals="Electrical 600%" qual="4.5" />
 
     <mob name="Malefic Wind" race="Outsider" kb="Area" />
     <mob name="Effluviarch" race="Outsider" paragon="1" kb="Area" />
-    <mob name="Superior Effluviarch" race="Outsider" paragon="2" heals="Elec 400%" kb="Area" />
-    <mob name="Elite Effluviarch" race="Outsider" paragon="3" heals="Elec 600%" kb="Area" />
+    <mob name="Superior Effluviarch" race="Outsider" paragon="2" heals="Electrical 400%" kb="Area" />
+    <mob name="Elite Effluviarch" race="Outsider" paragon="3" heals="Electrical 600%" kb="Area" />
 
     <mob name="Mammon's Tears" race="Outsider" qual="3.0" />
     <mob name="Dolorous Tear" race="Outsider" paragon="1" qual="4.0" />
@@ -194,8 +194,8 @@
 
     <mob name="Narzugon" race="Outsider" qual="2.0" />
     <mob name="Narzugon Eye" race="Outsider" paragon="1" qual="2.5" />
-    <mob name="Superior Narzugon Eye" race="Outsider" paragon="2" heals="Pos 400%" qual="2.5" />
-    <mob name="Elite Narzugon Eye" race="Outsider" paragon="3" heals="Pos 600%" qual="2.5" />
+    <mob name="Superior Narzugon Eye" race="Outsider" paragon="2" heals="Positive 400%" qual="2.5" />
+    <mob name="Elite Narzugon Eye" race="Outsider" paragon="3" heals="Positive 600%" qual="2.5" />
 
     <mob name="Nightmare" race="Outsider" />
     <mob name="Elder Nag" race="Outsider" paragon="1" />
@@ -204,8 +204,8 @@
 
     <mob name="Nupperibo" race="Outsider" />
     <mob name="Inchoate Baatorian" race="Outsider" paragon="1" />
-    <mob name="Superior Inchoate Baatorian" race="Outsider" paragon="2" heals="Elec 400%" />
-    <mob name="Elite Inchoate Baatorian" race="Outsider" paragon="3" heals="Elec 600%" />
+    <mob name="Superior Inchoate Baatorian" race="Outsider" paragon="2" heals="Electrical 400%" />
+    <mob name="Elite Inchoate Baatorian" race="Outsider" paragon="3" heals="Electrical 600%" />
 
     <mob name="Orthon" race="Outsider" qual="2.0" />
     <mob name="Orthon Fist" race="Outsider" paragon="1" qual="2.5" />
@@ -229,8 +229,8 @@
 
     <mob name="Rakshasa" race="Outsider" />
     <mob name="Raja" race="Outsider" paragon="1" />
-    <mob name="Superior Raja" race="Outsider" paragon="2" heals="Elec 400%" />
-    <mob name="Elite Raja" race="Outsider" paragon="3" heals="Elec 400%" />
+    <mob name="Superior Raja" race="Outsider" paragon="2" heals="Electrical 400%" />
+    <mob name="Elite Raja" race="Outsider" paragon="3" heals="Electrical 400%" />
 
     <mob name="Sahuagin" race="Outsider" />
     <mob name="Elder Sahuagin" race="Outsider" paragon="1" />
@@ -911,7 +911,7 @@
     <mob name="Aboleth" race="Aberration" />
     <mob name="Aboleth Savant" race="Aberration" />
     <mob name="Cildabrin" race="Aberration" />
-    <mob name="Crystal Ooze" race="Ooze" heals="Elec 500%" />
+    <mob name="Crystal Ooze" race="Ooze" heals="Electrical 500%" />
     <mob name="Devastation Crab" race="Vermin" />
     <mob name="Dream Larva" race="Vermin" />
     <mob name="Eidolon" race="Construct" />

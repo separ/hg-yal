@@ -92,7 +92,6 @@ my %COLOURS = ("Physical" => "orange",
                    "Piercing" => "orange",
                    "Acid" => "green",
                    "Electrical" => "#2160fe",
-                   "Elec" => "#2160fe", # hgdata.xml
                    "Fire" => "red",
                    "Cold" => "lightblue",
                    "Sonic" => "orange",
@@ -100,10 +99,8 @@ my %COLOURS = ("Physical" => "orange",
                    "Divine" => "yellow",
                    "Positive Energy" => "white",
                    "Positive" => "white",
-                   "Pos" => "white", # hgdata.xml
                    "Negative Energy" => "darkgray",
                    "Negative" => "darkgray",
-                   "Neg" => "darkgray", # hgdata.xml
                    "Internal" => "maroon",
                    "Vile" => "magenta",
                    "Sacred" => "LightGoldenrod",
@@ -1047,15 +1044,11 @@ sub parse_combat_line {
 	# Now make sure to keep information about which damage types that are actually doing damage
 	# Stole this idea and code from Kins. Ty :)
 	my %damage_type = ();
-	while ($damages =~ s/(\d+) (\S+)\s*//) {
+	while ($damages =~ s/(\d+) (\S+)\D*//) {
 	    my ($damount, $dtype) = ($1, $2);
-	    if ($heals && ($dtype =~ /^(Pos|Neg)/)) {
-		$dtype = $1; # to match with data from hgdata.xml
-		# TODO: if ($heals{$dtype}) ...
-	    }
+	    # TODO: if ($heals{$dtype}) ...
 	    $damage_type{$dtype} = $damount;
 	    $$oAtt{damOutTypes}{$dtype} = 1 if ($meleehit==1);
-#		print "Setting $attacker $dtype $$oAtt{damOutTypes}{$dtype}\n";		
 	    $$RUN{dam_taken_detail}{$defender . " :d: " . $dtype} += $damount;
 	}
 	
@@ -1114,15 +1107,16 @@ sub parse_combat_line {
 	$$killed{lastKiller} = $1;
 	$$RUN{killsEnemy}{$1}{$2}++;
 
-	# Start death timer if it was the toon that died and clear effects timers
-	if ($2 eq $$RUN{toon}) {
-	    $$RUN{deaths}++;
-	    $$RUN{lastKiller} = $1;
-	    $YAL{effectTimers} = {};
-	} 
 	if (exists($$RUN{partyList}{$2})) {
 	    # Start a death timer if it was a party member who died
 	    push(@{$$RUN{deathTimers}{300}}, $2); # unless $$RUN{cMap} && !$HGmaps->{$$RUN{cMap}}{'respawn'};
+	    # was it our own toon?
+	    if ($2 eq $$RUN{toon}) {
+		# if it was the toon that died ... clear effects timers
+		$$RUN{deaths}++;
+		$$RUN{lastKiller} = $1;
+		$YAL{effectTimers} = {};
+	    } 
 	}
 	else {
 	    # Check if the monster was a paragon
