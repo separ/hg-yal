@@ -50,6 +50,7 @@ my %emptyRun; # blueprint for run-data, filled with hg_run_init()
 my %currentRun; # data collection for current run
 my $RUN = \%currentRun; # run data (hits, kills, dmg, ...)
 my $runData; # = $$RUN{data}; # run data of individual actors (mobs or party members)}
+my $runDetails;
 
 my (%HGdata, $HGmobs, $HGareas, $HGmaps, $HGtoons, $HGnew);
 yal_init();
@@ -764,7 +765,7 @@ sub parse_combat_line {
 
 	$$oAtt{damOut} += $total;                   # sum for attacker
 	$$oDef{damIn} += $total;                  # sum for defender
-	$$RUN{damEnemy}{$attacker}{$defender} += $total;        # stores attacker and defender
+	$$runDetails{damEnemy}{$attacker}{$defender} += $total;        # stores attacker and defender
 	
 	my $meleehit = 0;
 	$meleehit = 1 if ($damages =~ /\d+ Physical/); # TODO: find out if we catch bigby spells here
@@ -836,7 +837,7 @@ sub parse_combat_line {
 	$$killer{lastKilled} = $2;
 	$$killed{deaths}++;
 	$$killed{lastKiller} = $1;
-	$$RUN{killsEnemy}{$1}{$2}++;
+	$$runDetails{killsEnemy}{$1}{$2}++;
 
 	if (exists($$RUN{partyList}{$2})) {
 	    # Start a death timer if it was a party member who died
@@ -1262,7 +1263,7 @@ sub process_attack {
 
     $$oAtt{swingsOut}++;
     $$oDef{swingsIn}++;
-    $$RUN{swingsAt}{$attacker}{$defender}++;
+    $$runDetails{swingsAt}{$attacker}{$defender}++;
     
     # Make sure to update the AB and AC estimate
     $AB{$attacker} = 0 if (!exists($AB{$attacker}));
@@ -1270,7 +1271,7 @@ sub process_attack {
     
     if ($status eq "hit" || $status eq "crit") {
 	$$oAtt{hits}++;
-	$$RUN{hitsEnemy}{$attacker}{$defender}++;
+	$$runDetails{hitsEnemy}{$attacker}{$defender}++;
 
 	if ($status eq "crit") {
 	    $$oAtt{crits}++;
@@ -1298,7 +1299,7 @@ sub process_attack {
 	$$oDef{dodge}++;
 	$$oDef{conceal} = $1 if (!exists($$oDef{conceal}));
 	$$oDef{conceal} = $1 if $1 > $$oDef{conceal};
-	$$RUN{missConcealed}{$attacker}{$defender}++;
+	$$runDetails{missConcealed}{$attacker}{$defender}++;
 	$status = "c$1%"; # for better display?
     }
     else {
@@ -1948,7 +1949,7 @@ sub dialog_effects {
 }
 
 
-sub yal_save_summary_html {
+sub save_run_html {
     my $file = $YW{mw}->getSaveFile(-initialfile=> 'lastrun.html',
 				-filetypes=>[['HTML files', '.html'],
 					     ['All Files', '*']],
@@ -1964,201 +1965,51 @@ sub yal_save_summary_html {
 	print SAVEFILE "<style type=\"text/css\">\n";
 	print SAVEFILE "body { font-size: 90% ; margin-left: 2% ; margin-right: 2% ; font-family: Verdana}\n";
 	print SAVEFILE "div.combatant { margin-bottom: 20px ; border: 1px solid black ; padding-top: 10px ; padding-bottom: 1% }\n";
-	print SAVEFILE "div.details { color: black ; width: 15em }";
-	print SAVEFILE "div.vulnBox { color: black ; background-color: #add8e6  }";
-	print SAVEFILE "div.immBox { color: black ; background-color: lightgray  }";
-	print SAVEFILE "div.damageArea { margin-left: 20% }";
+	print SAVEFILE "div.details { color: black ; width: 15em }\n";
+	print SAVEFILE "div.vulnBox { color: black ; background-color: #add8e6  }\n";
+	print SAVEFILE "div.immBox { color: black ; background-color: lightgray  }\n";
+	print SAVEFILE "div.damageArea { margin-left: 20% }\n";
 	print SAVEFILE "</style></head>\n";
 
-	print SAVEFILE "<body bgcolor=\"#ffffff\">";
-	print SAVEFILE "<h1>Party members</h1>";
+	print SAVEFILE "<body bgcolor=\"#ffffff\">\n";
+	print SAVEFILE "<h1>Party members</h1>\n";
 
-	print SAVEFILE "<ul>";
+	print SAVEFILE "<ul>\n";
 	foreach my $id (sort (keys(%{$$RUN{partyList}}))) {
-	    print SAVEFILE "<li> <a href=\"#$id\">$id</a>";
+	    print SAVEFILE "<li><a href=\"#$id\">$id</a></li>\n";
 	}
-	print SAVEFILE "</ul>";
+	print SAVEFILE "</ul>\n";
 	
-	print SAVEFILE "<hr>";
-	print SAVEFILE "<h1>Party summary</h1>";
-	print SAVEFILE "<table border=1>";
+	print SAVEFILE "<hr/>\n";
+	print SAVEFILE "<h1>Party summary</h1>\n";
+	print SAVEFILE "<table border=1>\n";
 	print SAVEFILE "<tr><th bgcolor=lightgray>Name</th><th bgcolor=lightgray>Kills</th><th bgcolor=lightgray>Deaths</th><th bgcolor=lightgray>Damage taken</th><th bgcolor=lightgray>Damage done</th>";
 	print SAVEFILE "<th bgcolor=lightgray title=\"Overall hit percentage and 95% confidence interval\">Hit \%</th><th bgcolor=lightgray title=\"Overall dodge percentage and 95% confidence interval\">Dodge \%</th><th bgcolor=lightgray title=\"Number of swings against hell monsters with nasty party kb\">Holla score</th></tr>";
-	foreach my $id (sort (keys(%{$$RUN{partyList}}))) {	    
-	    print SAVEFILE "<tr><td>$id</td>";
-	    print SAVEFILE "<td align=right>$$runData{$id}{kills}</td>";
-	    print SAVEFILE "<td align=right>$$runData{$id}{deaths}</td>";
-	    print SAVEFILE "<td align=right>$$runData{$id}{damIn}</td>";
-	    print SAVEFILE "<td align=right>$$runData{$id}{damOut}</td>";
-	    if (exists($$runData{$id}{hitPercentage})) {
-		my $ptilde = ($$runData{$id}{hits}+2) / ($$runData{$id}{swingsOut}+4);
-		my $se = sqrt($ptilde*(1-$ptilde)/($$runData{$id}{swingsOut}+4));
-		print SAVEFILE "<td align=left>$$runData{$id}{hitPercentage} (" . int(($ptilde-1.96*$se)*1000)/10 . " - " . int(($ptilde+1.96*$se)*1000)/10 .")</td>";
-	    }
-	    else {
-		print SAVEFILE "<td align=center>-</td>";
-	    }
-	    if (exists($$runData{$id}{dodge}) & exists($$runData{$id}{swingsIn})) {
-		my $dodgechance = 100*($$runData{$id}{dodge} / $$runData{$id}{swingsIn});
-		my $ptilde = ($$runData{$id}{dodge}+2) / ($$runData{$id}{swingsIn}+4);
-		my $se = sqrt($ptilde*(1-$ptilde)/($$runData{$id}{swingsIn}+4));
-		printf SAVEFILE "<td align=left>%5.2f (%5.2f - %5.2f)</td>", $dodgechance, int(($ptilde-1.96*$se)*1000)/10, int(($ptilde+1.96*$se)*1000)/10;
-	    }
-	    else {
-		print SAVEFILE "<td align=center>-</td>";
-	    }
-	    print SAVEFILE "<td align=right>" . ($$runData{$id}{badToonHits} // " -") . "</td></tr>";
+	foreach my $id (sort (keys(%{$$RUN{partyList}}))) {
+	    _save_run_toon_summary_html($id) if $$runData{$id};
 	}
 	print SAVEFILE "</table>";
 	
 	if ($$RUN{totalmobkills}>0) { 
-	    my $numberofparagons = (exists($$RUN{paracount}{1}) ? $$RUN{paracount}{1} : 0) + (exists($$RUN{paracount}{2}) ? $$RUN{paracount}{2} : 0) + (exists($$RUN{paracount}{3}) ? $$RUN{paracount}{3} : 0);
+	    my $numberofparagons = ($$RUN{paracount}{1} // 0) + ($$RUN{paracount}{2} // 0) + ($$RUN{paracount}{3} // 0);
 	    print SAVEFILE "<p title=\"Percentage of killed monsters that were paragons\">Paragon percentage: " . int($numberofparagons/$$RUN{totalmobkills} *1000)/10 . "% ";
 	    if ($numberofparagons>0) {
-		print SAVEFILE "(" . (exists($$RUN{paracount}{1}) ? $$RUN{paracount}{1} : 0);
-		print SAVEFILE "/" . (exists($$RUN{paracount}{2}) ? $$RUN{paracount}{2} : 0) . "/";
-		print SAVEFILE (exists($$RUN{paracount}{3}) ? $$RUN{paracount}{3} : 0) . ")";		
+		print SAVEFILE "(" . ($$RUN{paracount}{1} // 0);
+		print SAVEFILE "/" . ($$RUN{paracount}{2} // 0) . "/";
+		print SAVEFILE ($$RUN{paracount}{3} // 0) . ")";		
 	    }
 	}
 
-	print SAVEFILE "<hr>";
+	print SAVEFILE "<hr/>\n";
+
 	print SAVEFILE "<h1>Detailed report</h1>\n";
 	my %critterlist;
 	#@critterlist{(keys(%{$$RUN{partyList}}), keys(%kills), keys(%deaths))} = ();
 	@critterlist{(keys(%{$runData}))} = ();
-	foreach $_ (sort keys %critterlist) {
+	foreach my $critter (sort keys %critterlist) {
+	    _save_run_critter_details_html($critter);
+	}
 
-	    next if !$_; # TODO: this shouldn't happen - find out why
-
-	    print SAVEFILE "<div class=\"combatant\"><h3><a name=\"$_\">$_</a></h3>\n";
-	    print SAVEFILE "<table width=100%>";
-	    printf SAVEFILE "<tr valign=top><td width=15%% valign=top>Max AB: %3d<br>", exists($AB{$_}) ? $AB{$_} : 0;
-	    print SAVEFILE "Max AC: > " . (exists($MaxAC{$_}) ? $MaxAC{$_}+1 : "")  . "<br>";
-	    if (exists($SR{$_})) {
-		print SAVEFILE "Max SR: $SR{$_}<br>";
-	    }
-	    else {
-		print SAVEFILE "Max SR: -<br>";
-	    }
-	    if (exists($TR{$_})) {
-		print SAVEFILE "Max TR: $TR{$_}<br>";
-	    }
-	    printf SAVEFILE "Max conceal: %4.0f<br>", ($$runData{$_}{conceal} // 0);
-	    print SAVEFILE "Kills: $$runData{$_}{kills}<br>";
-	    printf SAVEFILE "Deaths: %4d<br>", ($$runData{$_}{deaths} // 0);
-
-	    printf SAVEFILE "<p><p>";
-	    printf SAVEFILE "Swings/hits/crits dealt:<br> %4.0f/%4.0f/%4.0f<br>", ($$runData{$_}{swingsOut} // 0), ($$runData{$_}{hits} // 0), ($$runData{$_}{crits} // 0);
-
-	    print SAVEFILE "<p><div class=\"vulnBox\"><b>Max saves:</b><br>";
-	    if (exists($Saves{$_})) {
-		my $maxsave = 0;
-		foreach my $savetype (keys(%{$Saves{$_}{"Fortitude"}{"max"}})) {
-		    $maxsave = max($Saves{$_}{"Fortitude"}{"max"}{$savetype}, $maxsave);
-		}
-		print SAVEFILE "F: " . ($maxsave>0 ? $maxsave : "-") .", ";
-		$maxsave=0;
-		foreach my $savetype (keys(%{$Saves{$_}{"Reflex"}{"max"}})) {
-		    $maxsave = max($Saves{$_}{"Reflex"}{"max"}{$savetype}, $maxsave);
-		}
-		print SAVEFILE "R: " . ($maxsave>0 ? $maxsave : "-") .", ";
-		$maxsave=0;
-		foreach my $savetype (keys(%{$Saves{$_}{"Will"}{"max"}})) {
-		    $maxsave = max($Saves{$_}{"Will"}{"max"}{$savetype}, $maxsave);
-		}	      
-		print SAVEFILE "W: " . ($maxsave>0 ? $maxsave : "-") ."<br></div>";
-	    }
-	    else {
-		print SAVEFILE "-<br></div>";
-	    }
-
-	    print SAVEFILE "<p><div class=\"immBox\"><b>Immunities:</b><font size=-2><br>", (exists($$runData{$_}{immuneTo}) ? join(", ", sort (keys(%{$$runData{$_}{immuneTo}}))) : "-") . "</font></div>";
-	    printf SAVEFILE "<p><div class=\"vulnBox\" title=\"The box lists the most common damage types that were taken\"><b>Damage taken:</b><br>%s<br></div>", exists($$runData{$_}{damInStr}) ? join("<br>",split(/, /, $$runData{$_}{damInStr})) : "";
-
-	    printf SAVEFILE "<p><div class=\"vulnBox\" title=\"The box lists the elements/exotics that this mob might be immune to. Note this is influenced by non-resistable damage\"><b>Damage immunity:</b><br>%s<br></div>", (exists($$HGmobs{$_}{immsEl}) ? join("<br>",sort(keys(%{$$HGmobs{$_}{immsEl}}))) : "");
-	    
-	    printf SAVEFILE "<p><div class=\"vulnBox\" title=\"Guesstimate of damage types done when you are hit by this PC/monster\"><b>Damage types dealt:</b><br>%s<br></div>", exists($$runData{$_}{damOutTypes}) ? join("<br>", keys %{ $$runData{$_}{damOutTypes} } ) : "No clue";
-
-	    if (exists($AbilityChecks{$_})) {
-		print SAVEFILE  "<p title=\"Notice these can be influenced by gear\"><b>Ability Checks:</b><br>";
-		foreach my $abcheck (keys(%{$AbilityChecks{$_}})) {
-		    print SAVEFILE substr($abcheck, 0, 3). ": " . $AbilityChecks{$_}{$abcheck} . "   ";
-		}
-	    }
-
-	    if (exists($SkillChecks{$_})) {
-		print SAVEFILE  "<p title=\"Notice these can be influenced by gear\"><b>Skill Checks:</b><br>";
-		foreach my $abcheck (keys(%{$SkillChecks{$_}})) {
-		    print SAVEFILE substr($abcheck, 0, 4). ": " . $SkillChecks{$_}{$abcheck} . "   ";
-		}
-	    }
-
-	    print SAVEFILE "</td><td valign=top>";
-	    print SAVEFILE "<b>Damage dealt:</b><p>";
-	    print SAVEFILE "<font size=\"-1\">";
-	    print SAVEFILE "<table width=100% border=1><tr><th width=40% bgcolor=lightgray>Name</th><th bgcolor=lightgray width=6%>Kills</th><th bgcolor=lightgray width=10%>Swings/hits/crits</th><th bgcolor=lightgray width=25%>Hit %</th><th bgcolor=lightgray>Total damage</th></tr>";
-	    my %defenderlist;
-	    @defenderlist{(keys(%{$$RUN{killsEnemy}{$_}}), keys(%{$$RUN{damEnemy}{$_}}), keys(%{$$RUN{swingsAt}{$_}}))}  = ();
-	    foreach my $defender (sort keys %defenderlist) {
-		print SAVEFILE "<tr><td>$defender</td>";
-		print SAVEFILE "<td align=right>" . ($$RUN{killsEnemy}{$_}{$defender} // "") . "</td>";
-
-		print SAVEFILE "<td width=10%><table border=0><tr>";
-		printf SAVEFILE "<td width=8%% align=left>%s</td>", ($$RUN{swingsAt}{$_}{$defender} // "");
-		printf SAVEFILE "<td width=5%% align=center>%s</td>", ($$RUN{hitsEnemy}{$_}{$defender} // "");
-		printf SAVEFILE "<td width=5%% align=right>%s</td>", ($$RUN{critsEnemy}{$_}{$defender} // "");
-		print SAVEFILE "</tr></table></td>";
-
-
-		print SAVEFILE "<td width=15%><table border=0><tr><td width=5% align=left>";
-		
-		if (exists($$RUN{swingsAt}{$_}{$defender}) && $$RUN{swingsAt}{$_}{$defender}>0) {
-		    $$RUN{hitsEnemy}{$_}{$defender} = 0 if (!exists($$RUN{hitsEnemy}{$_}{$defender}));
-
-		    my $ptilde = ($$RUN{hitsEnemy}{$_}{$defender}+2) / ($$RUN{swingsAt}{$_}{$defender}+4);
-		    my $se = sqrt($ptilde*(1-$ptilde)/($$RUN{swingsAt}{$_}{$defender}+4));
-		    print SAVEFILE int(1000*($$RUN{hitsEnemy}{$_}{$defender}/$$RUN{swingsAt}{$_}{$defender}))/10 . "%</td><td align=center width=15%>(" . int(($ptilde-1.96*$se)*1000)/10 . " - " . int(($ptilde+1.96*$se)*1000)/10 .")</td>";
-		}
-		else {
-		    print SAVEFILE "</td><td></td>";		    
-		}
-		print SAVEFILE "<td align=right width=5%>";
-		if (exists($$RUN{swingsAt}{$_}{$defender}) && $$RUN{swingsAt}{$_}{$defender}>0) {
-		    $$RUN{missConcealed}{$_}{$defender} = 0 if (!exists($$RUN{missConcealed}{$_}{$defender}));
-		    $$RUN{hitsEnemy}{$_}{$defender} = 0 if (!exists($$RUN{hitsEnemy}{$_}{$defender}));
-		    if ($$RUN{swingsAt}{$_}{$defender} == $$RUN{missConcealed}{$_}{$defender}) {
-			print SAVEFILE "0"
-		    }
-		    else {
-			print SAVEFILE int(1000*$$RUN{hitsEnemy}{$_}{$defender} / ($$RUN{swingsAt}{$_}{$defender} - $$RUN{missConcealed}{$_}{$defender}))/10 . "%";
-		    }
-		}
-		print SAVEFILE "</td>";
-		print SAVEFILE "</tr></table>";
-
-
-		print SAVEFILE "<td align=right>" . ($$RUN{damEnemy}{$_}{$defender} // "") . "</td></tr>"
-		
-	    }
-	    print SAVEFILE "</table>";
-	    print SAVEFILE "</font>";
-
-	    print SAVEFILE "<p><b>Damage received:</b><p>";
-	    print SAVEFILE "<font size=\"-1\">";
-	    print SAVEFILE "<table width=100% border=1><tr><th width=40% bgcolor=lightgray>Name</th><th bgcolor=lightgray width=6%>Deaths by</th><th bgcolor=lightgray width=10%>Attacks by</th><th bgcolor=lightgray width=25%>Hit %</th><th bgcolor=lightgray>Total damage</th></tr>";	    
-            foreach my $id (sort keys %{ $$RUN{killsEnemy} }) {
-		if ( exists($$RUN{killsEnemy}{$id}{$_}) || exists($$RUN{damEnemy}{$id}{$_}) || exists($$RUN{swingsAt}{$id}{$_})) {
-		    print SAVEFILE "<tr><td>$id</td><td align=right>" . ($$RUN{killsEnemy}{$id}{$_} // "") . "</td>";
-		    print SAVEFILE "<td align=right>" . ($$RUN{swingsAt}{$id}{$_} // "") . "</td>";
-		    printf SAVEFILE "<td align=right>%5.1f</td>", ((exists($$RUN{swingsAt}{$id}{$_}) && exists($$RUN{hitsEnemy}{$id}{$_})) ? 100*($$RUN{hitsEnemy}{$id}{$_}/$$RUN{swingsAt}{$id}{$_}) : 0);
-		    print SAVEFILE "<td align=right>" . ($$RUN{damEnemy}{$id}{$_} // "") . "</td></tr>";
-		}
-	    }
-	    print SAVEFILE "</table>";
-	    print SAVEFILE "</font>";
-	    print SAVEFILE "</td>";
-	    print SAVEFILE "</tr></table></div><p>\n";
-	}	
 	if ($shamelessadvertising ==1) {
 	    print SAVEFILE "Edits by Illandous may have helped you on your run.  Thank him by giving him a bur :P <a href=\"http://highergroundpoa.proboards3.com/index.cgi?board=software&action=display&thread=10946\">NWN-logger</a> v" . $version . " by Claus Ekstroem. Edits by Illandous.</p>\n";
 	}
@@ -2170,8 +2021,188 @@ sub yal_save_summary_html {
     }    
 }
 
+sub _save_run_toon_summary_html {
+    my $id = shift;
+    my $toonData = $$runData{$id};
 
-sub yal_save_inventories {
+    print SAVEFILE "<tr><td>$id</td>";
+    print SAVEFILE "<td align=right>$$toonData{kills}</td>";
+    print SAVEFILE "<td align=right>$$toonData{deaths}</td>";
+    print SAVEFILE "<td align=right>$$toonData{damIn}</td>";
+    print SAVEFILE "<td align=right>$$toonData{damOut}</td>";
+    if (exists($$toonData{hitPercentage})) {
+	my $ptilde = ($$toonData{hits}+2) / ($$toonData{swingsOut}+4);
+	my $se = sqrt($ptilde*(1-$ptilde) / ($$toonData{swingsOut}+4));
+	print SAVEFILE "<td align=left>$$toonData{hitPercentage} (" . int(($ptilde-1.96*$se)*1000)/10 . " - " . int(($ptilde+1.96*$se)*1000)/10 .")</td>";
+    }
+    else {
+	print SAVEFILE "<td align=center>-</td>";
+    }
+    #if (exists($$toonData{dodge}) & exists($$toonData{swingsIn})) {
+    if ($$toonData{dodge} && $$toonData{swingsIn}) {
+	my $dodgechance = 100 * ($$toonData{dodge} / $$toonData{swingsIn});
+	my $ptilde = ($$toonData{dodge}+2) / ($$toonData{swingsIn}+4);
+	my $se = sqrt($ptilde*(1-$ptilde) / ($$toonData{swingsIn}+4));
+	printf SAVEFILE "<td align=left>%5.2f (%5.2f - %5.2f)</td>", $dodgechance, int(($ptilde-1.96*$se)*1000)/10, int(($ptilde+1.96*$se)*1000)/10;
+    }
+    else {
+	print SAVEFILE "<td align=center>-</td>";
+    }
+    print SAVEFILE "<td align=right>" . ($$toonData{badToonHits} // " -") . "</td></tr>";
+}
+
+sub _save_run_critter_details_html {
+    my $crName = shift;
+    return if !$crName; # TODO: this shouldn't happen - find out why
+
+    print SAVEFILE "<div class=\"combatant\"><h3><a name=\"$crName\">$crName</a></h3>\n";
+    print SAVEFILE "<table width=100%><tr valign=top>";
+
+    print SAVEFILE "<td width=\"15%\" valign=\"top\">";
+    _save_run_critter_baseData_html($crName);
+    print SAVEFILE "</td>";
+
+    print SAVEFILE "<td valign=top>";
+    _save_run_critter_enemyData_html($crName);
+    print SAVEFILE "</td>";
+
+    print SAVEFILE "</tr></table></div><p>\n";
+}
+
+sub _save_run_critter_baseData_html {
+    my $crName = shift;
+
+    printf SAVEFILE "Max AB: %3d<br>", ($AB{$crName} // 0);
+    print SAVEFILE "Max AC: > " . (exists($MaxAC{$crName}) ? $MaxAC{$crName}+1 : "")  . "<br>";
+    if (exists($SR{$crName})) {
+	print SAVEFILE "Max SR: $SR{$crName}<br>";
+    }
+    else {
+	print SAVEFILE "Max SR: -<br>";
+    }
+    if (exists($TR{$crName})) {
+	print SAVEFILE "Max TR: $TR{$crName}<br>";
+    }
+    printf SAVEFILE "Max conceal: %4.0f<br>", ($$runData{$crName}{conceal} // 0);
+    print SAVEFILE "Kills: $$runData{$crName}{kills}<br>";
+    printf SAVEFILE "Deaths: %4d<br>", ($$runData{$crName}{deaths} // 0);
+
+    printf SAVEFILE "<p><p>";
+    printf SAVEFILE "Swings/Hits/Crits dealt:<br/> %4.0f/%4.0f/%4.0f<br/>", ($$runData{$crName}{swingsOut} // 0), ($$runData{$crName}{hits} // 0), ($$runData{$crName}{crits} // 0);
+
+    print SAVEFILE "<p><div class=\"vulnBox\"><b>Max saves:</b><br>";
+    if (exists($Saves{$crName})) {
+	my $maxsave = 0;
+	foreach my $savetype (keys(%{$Saves{$crName}{"Fortitude"}{"max"}})) {
+	    $maxsave = max($Saves{$crName}{"Fortitude"}{"max"}{$savetype}, $maxsave);
+	}
+	print SAVEFILE "F: " . ($maxsave>0 ? $maxsave : "-") .", ";
+	$maxsave=0;
+	foreach my $savetype (keys(%{$Saves{$crName}{"Reflex"}{"max"}})) {
+	    $maxsave = max($Saves{$crName}{"Reflex"}{"max"}{$savetype}, $maxsave);
+	}
+	print SAVEFILE "R: " . ($maxsave>0 ? $maxsave : "-") .", ";
+	$maxsave=0;
+	foreach my $savetype (keys(%{$Saves{$crName}{"Will"}{"max"}})) {
+	    $maxsave = max($Saves{$crName}{"Will"}{"max"}{$savetype}, $maxsave);
+	}	      
+	print SAVEFILE "W: " . ($maxsave>0 ? $maxsave : "-") ."<br></div>";
+    }
+    else {
+	print SAVEFILE "-<br></div>";
+    }
+
+    print SAVEFILE "<p><div class=\"immBox\"><b>Immunities:</b><font size=-2><br>", (exists($$runData{$crName}{immuneTo}) ? join(", ", sort (keys(%{$$runData{$crName}{immuneTo}}))) : "-") . "</font></div>";
+    printf SAVEFILE "<p><div class=\"vulnBox\" title=\"The box lists the most common damage types that were taken\"><b>Damage taken:</b><br>%s<br></div>", exists($$runData{$crName}{damInStr}) ? join("<br>",split(/, /, $$runData{$crName}{damInStr})) : "";
+
+    printf SAVEFILE "<p><div class=\"vulnBox\" title=\"The box lists the elements/exotics that this mob might be immune to. Note this is influenced by non-resistable damage\"><b>Damage immunity:</b><br>%s<br></div>", (exists($$HGmobs{$crName}{immsEl}) ? join("<br>",sort(keys(%{$$HGmobs{$crName}{immsEl}}))) : "");
+    
+    printf SAVEFILE "<p><div class=\"vulnBox\" title=\"Guesstimate of damage types done when you are hit by this PC/monster\"><b>Damage types dealt:</b><br>%s<br></div>", exists($$runData{$crName}{damOutTypes}) ? join("<br>", keys %{ $$runData{$crName}{damOutTypes} } ) : "No clue";
+
+    if (exists($AbilityChecks{$crName})) {
+	print SAVEFILE  "<p title=\"Notice these can be influenced by gear\"><b>Ability Checks:</b><br>";
+	foreach my $abcheck (keys(%{$AbilityChecks{$crName}})) {
+	    print SAVEFILE substr($abcheck, 0, 3). ": " . $AbilityChecks{$crName}{$abcheck} . "   ";
+	}
+    }
+
+    if (exists($SkillChecks{$crName})) {
+	print SAVEFILE  "<p title=\"Notice these can be influenced by gear\"><b>Skill Checks:</b><br>";
+	foreach my $abcheck (keys(%{$SkillChecks{$crName}})) {
+	    print SAVEFILE substr($abcheck, 0, 4). ": " . $SkillChecks{$crName}{$abcheck} . "   ";
+	}
+    }
+}
+
+sub _save_run_critter_enemyData_html {
+    my $crName = shift;
+
+    print SAVEFILE "<b>Damage dealt:</b><p>";
+    print SAVEFILE "<font size=\"-1\">";
+    print SAVEFILE "<table width=100% border=1><tr><th width=40% bgcolor=lightgray>Name</th><th bgcolor=lightgray width=6%>Kills</th><th bgcolor=lightgray width=10%>Swings/hits/crits</th><th bgcolor=lightgray width=25%>Hit %</th><th bgcolor=lightgray>Total damage</th></tr>";
+
+    my %defenderlist;
+    @defenderlist{(keys(%{$$runDetails{killsEnemy}{$crName}}), keys(%{$$runDetails{damEnemy}{$crName}}), keys(%{$$runDetails{swingsAt}{$crName}}))}  = ();
+    foreach my $defender (sort keys %defenderlist) {
+
+	print SAVEFILE "<tr><td>$defender</td>";
+	print SAVEFILE "<td align=right>" . ($$runDetails{killsEnemy}{$crName}{$defender} // "") . "</td>";
+
+	print SAVEFILE "<td width=10%><table border=0><tr>";
+	printf SAVEFILE "<td width=8%% align=left>%s</td>", ($$runDetails{swingsAt}{$crName}{$defender} // "");
+	printf SAVEFILE "<td width=5%% align=center>%s</td>", ($$runDetails{hitsEnemy}{$crName}{$defender} // "");
+	printf SAVEFILE "<td width=5%% align=right>%s</td>", ($$RUN{critsEnemy}{$crName}{$defender} // "");
+	print SAVEFILE "</tr></table></td>";
+
+
+	print SAVEFILE "<td width=15%><table border=0><tr><td width=5% align=left>";
+	
+	if (exists($$runDetails{swingsAt}{$crName}{$defender}) && $$runDetails{swingsAt}{$crName}{$defender}>0) {
+	    $$runDetails{hitsEnemy}{$crName}{$defender} = 0 if (!exists($$runDetails{hitsEnemy}{$crName}{$defender}));
+
+	    my $ptilde = ($$runDetails{hitsEnemy}{$crName}{$defender}+2) / ($$runDetails{swingsAt}{$crName}{$defender}+4);
+	    my $se = sqrt($ptilde*(1-$ptilde)/($$runDetails{swingsAt}{$crName}{$defender}+4));
+	    print SAVEFILE int(1000*($$runDetails{hitsEnemy}{$crName}{$defender}/$$runDetails{swingsAt}{$crName}{$defender}))/10 . "%</td><td align=center width=15%>(" . int(($ptilde-1.96*$se)*1000)/10 . " - " . int(($ptilde+1.96*$se)*1000)/10 .")</td>";
+	}
+	else {
+	    print SAVEFILE "</td><td></td>";		    
+	}
+	print SAVEFILE "<td align=right width=5%>";
+	if (exists($$runDetails{swingsAt}{$crName}{$defender}) && $$runDetails{swingsAt}{$crName}{$defender}>0) {
+	    $$runDetails{missConcealed}{$crName}{$defender} = 0 if (!exists($$runDetails{missConcealed}{$crName}{$defender}));
+	    $$runDetails{hitsEnemy}{$crName}{$defender} = 0 if (!exists($$runDetails{hitsEnemy}{$crName}{$defender}));
+	    if ($$runDetails{swingsAt}{$crName}{$defender} == $$runDetails{missConcealed}{$crName}{$defender}) {
+		print SAVEFILE "0"
+	    }
+	    else {
+		print SAVEFILE int(1000*$$runDetails{hitsEnemy}{$crName}{$defender} / ($$runDetails{swingsAt}{$crName}{$defender} - $$runDetails{missConcealed}{$crName}{$defender}))/10 . "%";
+	    }
+	}
+	print SAVEFILE "</td>";
+	print SAVEFILE "</tr></table>";
+
+	print SAVEFILE "<td align=right>" . ($$runDetails{damEnemy}{$crName}{$defender} // "") . "</td></tr>";
+    }
+
+    print SAVEFILE "</table>";
+    print SAVEFILE "</font>";
+
+    print SAVEFILE "<p><b>Damage received:</b><p>";
+    print SAVEFILE "<font size=\"-1\">";
+    print SAVEFILE "<table width=100% border=1><tr><th width=40% bgcolor=lightgray>Name</th><th bgcolor=lightgray width=6%>Deaths by</th><th bgcolor=lightgray width=10%>Attacks by</th><th bgcolor=lightgray width=25%>Hit %</th><th bgcolor=lightgray>Total damage</th></tr>";	    
+    foreach my $id (sort keys %{ $$runDetails{killsEnemy} }) {
+	if ( exists($$runDetails{killsEnemy}{$id}{$crName}) || exists($$runDetails{damEnemy}{$id}{$crName}) || exists($$runDetails{swingsAt}{$id}{$crName})) {
+	    print SAVEFILE "<tr><td>$id</td><td align=right>" . ($$runDetails{killsEnemy}{$id}{$crName} // "") . "</td>";
+	    print SAVEFILE "<td align=right>" . ($$runDetails{swingsAt}{$id}{$crName} // "") . "</td>";
+	    printf SAVEFILE "<td align=right>%5.1f</td>", ((exists($$runDetails{swingsAt}{$id}{$crName}) && exists($$runDetails{hitsEnemy}{$id}{$crName})) ? 100*($$runDetails{hitsEnemy}{$id}{$crName}/$$runDetails{swingsAt}{$id}{$crName}) : 0);
+	    print SAVEFILE "<td align=right>" . ($$runDetails{damEnemy}{$id}{$crName} // "") . "</td></tr>";
+	}
+    }
+    print SAVEFILE "</table>";
+    print SAVEFILE "</font>";
+}
+
+sub save_inventories {
     my $file = $YW{mw}->getSaveFile(-initialfile=> 'gear.html',
 				-filetypes=>[['HTML files', '.html'],
 					     ['ASCII files', '.txt'],
@@ -2244,7 +2275,7 @@ sub runlog_start {
 				-defaultextension => '.txt');
     
     if (defined($YAL{save_to_file})) {
-	open(SAVEFILE, ">$YAL{save_to_file}");
+	open(RUNSAVEFILE, ">$YAL{save_to_file}");
 
 	# Change the menubuttons so start run is disabled
 	$YW{menu_file}->entryconfigure('End run', -state=>'normal');
@@ -2264,7 +2295,7 @@ sub runlog_start {
 
 sub runlog_end {
     runlog_save_buffer();
-    close(SAVEFILE);
+    close(RUNSAVEFILE);
     $YW{menu_file}->entryconfigure('End run', -state=>'disabled');
     $YW{menu_file}->entryconfigure('Start a run', -state=>'normal');
     $YAL{savefiletimer}->cancel;
@@ -2287,14 +2318,15 @@ sub runlog_end {
 
 
 sub runlog_save_buffer {
-    print SAVEFILE $YAL{saverunbuffer};
+    print RUNSAVEFILE $YAL{saverunbuffer};
     $YAL{saverunbuffer}="";
 }
 
 sub hg_run_init {
     %emptyRun = (
 	# who is playing
-	data => {},
+	data => {}, # keyed by actor
+	details => {}, # keyed by {attacker}{defender}
 	name => 'current',
 	toon => '', # name of our current toon
 	player => '', # our login-name
@@ -2351,6 +2383,7 @@ sub hg_run_reset {
 	}
     }
     $runData = $$RUN{data}; # run data of individual actors (mobs or party members)}
+    $runDetails = $$RUN{details}; # more detailed data attacker -> defender
 }
 
 sub hg_run_new_actor {
