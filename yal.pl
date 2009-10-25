@@ -48,9 +48,10 @@ my %YW = (); # YAL Widgets
 
 my %emptyRun; # blueprint for run-data, filled with hg_run_init()
 my %currentRun; # data collection for current run
-my $RUN = \%currentRun; # run data (hits, kills, dmg, ...)
+my $RUN; # run data (hits, kills, dmg, ...)
 my $runData; # = $$RUN{data}; # run data of individual actors (mobs or party members)}
 my $runDetails;
+my $savedRun;
 
 my (%HGdata, $HGmobs, $HGareas, $HGmaps, $HGtoons, $HGnew);
 yal_init();
@@ -248,7 +249,6 @@ my $col_acid = "Green1";
 # initialize the gui
 gui_init();
 
-$YAL{parsetimer} = $YW{mw}->repeat($YAL{parsetime} => \&parse_log_file);
 # This is really a poor mans version of the timers. A potential problem is the time NWN takes to write stuff to the log - espcially on network drives
 # It would be much smarter to continuously adjust the timers according to the log time. I may get around to that at some point
 $YAL{rpDeathTimers} = $YW{mw}->repeat(1000 => \&update_death_timers);   
@@ -276,8 +276,8 @@ if ($OPTIONS{'autostartrun'}) {
     runlog_start('currentrun.txt');
 }
 
-
-open(LOGFILE, "$YAL{currentlogfile}");
+# start parsing current log
+yal_parse_open($YAL{currentlogfile});
 
 MainLoop;
 # yal_save_config();
@@ -290,11 +290,10 @@ close(LOGFILE);
 #
 #------------------------------------------------
 
-
 #
 # This is the main rutine parsing the log file
 #
-sub parse_log_file {
+sub yal_parse_log {
 
     return if !(-e $YAL{currentlogfile});
 
@@ -302,17 +301,7 @@ sub parse_log_file {
 
     # logfile- and run-info is now top-right
     $YAL{logfile_info} = $YAL{currentlogfile} . (defined($YAL{saverunbuffer}) ? ' (RUN)' : '');
-    $YAL{statusmessage} = "Total XP: " . num_fmt($$RUN{totalxp}) . " | Total dmg: " . (num_fmt($$runData{$$RUN{toon}}{damOut}) || "None yet" ) ;
-
-    if ($OPTIONS{"showparagons"}==1) {
-	if ($$RUN{totalmobkills}>0) { 
-	    my $numberofparagons = ($$RUN{paracount}{1} // 0) + ($$RUN{paracount}{2} // 0) + ($$RUN{paracount}{3} // 0);
-	    $YAL{statusmessage} .= " | Paragons: " . int($numberofparagons/$$RUN{totalmobkills} *1000)/10 . "%";
-	}
-	else {
-	    $YAL{statusmessage} .= " | Paragons: 0%";
-	}
-    }
+    update_run_stats();
         
     my $endhitout = ($YW{hits_out} -> yview())[1];
     my $endhitinc = ($YW{hits_inc} -> yview())[1];
@@ -324,7 +313,7 @@ sub parse_log_file {
     # Clear the EOF flag
     seek(LOGFILE,0,1) || ($YAL{statusmessage} .= " | Log file not found!");
     while(<LOGFILE>) {
-	if (defined($YAL{saverunbuffer})) {
+	if (defined($YAL{saverunbuffer}) && $YAL{isCurrent}) {
 	    $YAL{saverunbuffer} .= $_ ;
 	}
 
@@ -629,8 +618,10 @@ sub parse_log_file {
     $YW{damage_out}->see('end') if $enddmgout == 1;
     $YW{damage_inc}->see('end') if $enddmginc == 1;
 
+    update_run_stats();
+
     # Check if it's time to change log files
-    yal_check_log_file();
+    yal_check_log_file() if $YAL{isCurrent};
 }
 
 # saves and ability checks
@@ -1400,6 +1391,18 @@ sub update_death_timers {
     }
 }
 
+sub update_run_stats {
+    $YAL{statusmessage} = "Total XP: " . num_fmt($$RUN{totalxp}) . " | Total dmg: " . (num_fmt($$runData{$$RUN{toon}}{damOut}) || "None yet" ) ;
+    if ($OPTIONS{"showparagons"}==1) {
+	if ($$RUN{totalmobkills}>0) { 
+	    my $numberofparagons = ($$RUN{paracount}{1} // 0) + ($$RUN{paracount}{2} // 0) + ($$RUN{paracount}{3} // 0);
+	    $YAL{statusmessage} .= " | Paragons: " . int($numberofparagons/$$RUN{totalmobkills} *1000)/10 . "%";
+	}
+	else {
+	    $YAL{statusmessage} .= " | Paragons: 0%";
+	}
+    }
+}
 
 sub clear_last_fugue_timer() {
 #    pop(@{$$RUN{deathTimers}{300}});        
@@ -2322,6 +2325,7 @@ sub runlog_save_buffer {
     $YAL{saverunbuffer}="";
 }
 
+# prepare container to hold data for a run
 sub hg_run_init {
     %emptyRun = (
 	# who is playing
@@ -2361,11 +2365,14 @@ sub hg_run_init {
 	totalxp => 0,
 	dam_taken_detail => {}, # for immunity/vulnerability calcs
     );
+
+    %currentRun = %emptyRun;
+    $RUN = \%currentRun; # run data (hits, kills, dmg, ...)
+    hg_run_reset();
 }
 
 sub hg_run_reset {
-    my ($k, $v);
-    while (($k, $v) = each (%currentRun)) {
+    while (my ($k, $v) = each (%currentRun)) {
 	next if !$v; # value already false, nothing to reset
 	if (defined($emptyRun{$k})) {
 	    my $t = ref $emptyRun{$k};
@@ -2505,37 +2512,66 @@ sub calculate_vulnerabilities {
 }
 
 
-sub parse_old_log_file {
+sub yal_parse_old_log {
     my $file = $YW{mw}->getOpenFile(-initialfile=> 'oldlogfile.txt',
 				-filetypes=>[['Text files', '.txt'],
 					     ['All Files', '*']],
 				-defaultextension => '.txt');
     
     if (defined($file)) {
-	# Halt the automatic parsing
-	$YAL{parsetimer}->cancel;
-	my $originalfile = $YAL{currentlogfile};
-	my $location = tell(LOGFILE);
 
-	$YAL{currentlogfile} = $file;
-	$YAL{isCurrent} = 0;
+	yal_parse_open($file);
 
-	open (LOGFILE, $file);
-	parse_log_file();
+	hg_run_reset();
+
+	yal_parse_log();
 	close(LOGFILE);
 	
-	$YAL{currentlogfile} = $originalfile;
-	$YAL{isCurrent} = ($originalfile =~ /nwclientLog\d\.txt/);
-
-	open (LOGFILE, $YAL{currentlogfile});
-	seek(LOGFILE, $location, 0);
-
-	# Restart the original parser
-	$YAL{parsetimer} = $YW{mw}->repeat($YAL{parsetime} => \&parse_log_file);
+	#yal_parse_open($YAL{origLogFile});
     }
 }
 
+sub yal_parse_open {
+    my $file = shift;
+    $file = $YAL{origLogFile} if !$file;
 
+    if ($YAL{isCurrent}) {
+	# Halt the automatic parsing
+	$YAL{parsetimer}->cancel;
+	# remember current position
+	$YAL{origLogFile} = $YAL{currentlogfile};
+	$YAL{origOffset} = tell(LOGFILE);
+
+	close(LOGFILE);
+	$YW{menu_file}->entryconfigure('Parse current', -state=>'normal');
+
+	%{$savedRun} = %currentRun;
+    }
+
+    $YAL{currentlogfile} = $file;
+    $YAL{isCurrent} = ($YAL{currentlogfile} =~ /nwclientLog\d\.txt/);
+
+    open(LOGFILE, $file);
+    if ($YAL{isCurrent}) {
+	seek(LOGFILE, $YAL{origOffset}, 0) if $YAL{origOffset};
+	# Restart the original parser
+	$YAL{parsetimer} = $YW{mw}->repeat($YAL{parsetime} => \&yal_parse_log);
+	$YW{menu_file}->entryconfigure('Parse current', -state=>'disabled');
+
+	if ($savedRun) {
+	    while (my ($k, $v) = each (%currentRun)) {
+		if (exists($$savedRun{$k})) {
+		    $currentRun{$k} = $$savedRun{$k};
+		} else {
+		    delete $currentRun{$k};
+		}
+	    }
+	    undef $savedRun;
+	    $runData = $$RUN{data}; # run data of individual actors (mobs or party members)}
+	    $runDetails = $$RUN{details}; # more detailed data attacker -> defender
+	}
+    }
+}
 
 #
 # The following functions deal with saving and loading/validation of the configuration file
@@ -2671,12 +2707,14 @@ sub gui_init_menu {
 	-underline=>0,
 	-tearoff => 'no',
 	-menuitems => [
-	    ['command' => "Save ~HTML summary", -command => \&yal_save_summary_html],
-	    [Separator => ''],
 	    ['command' => "~Start a run", -command => \&runlog_start],
 	    ['command' => "E~nd run", -command => \&runlog_end, -state => 'disabled'],
-	    ['command' => "~Parse old log file", -command => \&parse_old_log_file],
-	    ['command' => "Save ~inventories", -command => \&yal_save_inventories],
+	    [Separator => ''],
+	    ['command' => "~Parse old log file", -command => \&yal_parse_old_log],
+	    ['command' => "Parse ~current", -command => \&yal_parse_open],
+	    [Separator => ''],
+	    ['command' => "Save ~HTML summary", -command => \&save_run_html],
+	    ['command' => "Save ~inventories", -command => \&save_inventories],
 	]
     ) -> pack(-side=>'left');
 
@@ -3100,7 +3138,7 @@ sub yal_init {
 	logfile_info => "?", # info-string about current logfile
 	catchPartyWho => 0, # autofill party when we get player list of our server?
 	myServerWho => 0, # are next items in !who output from our server?
-	isCurrent => 1, # are we parsing direct nwn output or old logfile
+	isCurrent => 0, # are we parsing direct nwn output or old logfile
 	effectTimers => {}, # the key is the name of the effect the value is the duration of the effect
 	effectTimersMax => {}, # stores the values from the effects command so when you cast a spell it shows up in your effects
 	timerGSmite => [], # timers for greater smite
@@ -3124,8 +3162,6 @@ sub yal_init {
 
     # prepare structure to save run data in
     hg_run_init();
-    %currentRun = %emptyRun;
-    hg_run_reset();
 }
 
 sub hgdata_import_xml {
