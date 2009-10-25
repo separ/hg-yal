@@ -756,7 +756,8 @@ sub parse_combat_line {
 
 	$$oAtt{damOut} += $total;                   # sum for attacker
 	$$oDef{damIn} += $total;                  # sum for defender
-	$$runDetails{damEnemy}{$attacker}{$defender} += $total;        # stores attacker and defender
+	$$runDetails{$attacker}{$defender}{damEnemy} += $total;        # stores attacker and defender
+	$$runDetails{$defender}{$attacker} = undef if !exists($$runDetails{$defender}{$attacker});
 	
 	my $meleehit = 0;
 	$meleehit = 1 if ($damages =~ /\d+ Physical/); # TODO: find out if we catch bigby spells here
@@ -828,7 +829,8 @@ sub parse_combat_line {
 	$$killer{lastKilled} = $2;
 	$$killed{deaths}++;
 	$$killed{lastKiller} = $1;
-	$$runDetails{killsEnemy}{$1}{$2}++;
+	$$runDetails{$1}{$2}{killsEnemy}++;
+	$$runDetails{$2}{$1} = undef if !exists($$runDetails{$2}{$1});
 
 	if (exists($$RUN{partyList}{$2})) {
 	    # Start a death timer if it was a party member who died
@@ -1254,7 +1256,8 @@ sub process_attack {
 
     $$oAtt{swingsOut}++;
     $$oDef{swingsIn}++;
-    $$runDetails{swingsAt}{$attacker}{$defender}++;
+    $$runDetails{$attacker}{$defender}{swingsAt}++;
+    $$runDetails{$defender}{$attacker} = undef if !exists($$runDetails{$defender}{$attacker});
     
     # Make sure to update the AB and AC estimate
     $AB{$attacker} = 0 if (!exists($AB{$attacker}));
@@ -1262,11 +1265,11 @@ sub process_attack {
     
     if ($status eq "hit" || $status eq "crit") {
 	$$oAtt{hits}++;
-	$$runDetails{hitsEnemy}{$attacker}{$defender}++;
+	$$runDetails{$attacker}{$defender}{hitsEnemy}++;
 
 	if ($status eq "crit") {
 	    $$oAtt{crits}++;
-	    $$RUN{critsEnemy}{$attacker}{$defender}++;
+	    $$runDetails{$attacker}{$defender}{critsEnemy}++;
 	}
 	
 	$$RUN{hits}++ if ($attacker eq $$RUN{toon});
@@ -1290,7 +1293,7 @@ sub process_attack {
 	$$oDef{dodge}++;
 	$$oDef{conceal} = $1 if (!exists($$oDef{conceal}));
 	$$oDef{conceal} = $1 if $1 > $$oDef{conceal};
-	$$runDetails{missConcealed}{$attacker}{$defender}++;
+	$$runDetails{$attacker}{$defender}{missConcealed}++;
 	$status = "c$1%"; # for better display?
     }
     else {
@@ -2145,46 +2148,49 @@ sub _save_run_critter_enemyData_html {
     print SAVEFILE "<table width=100% border=1><tr><th width=40% bgcolor=lightgray>Name</th><th bgcolor=lightgray width=6%>Kills</th><th bgcolor=lightgray width=10%>Swings/hits/crits</th><th bgcolor=lightgray width=25%>Hit %</th><th bgcolor=lightgray>Total damage</th></tr>";
 
     my %defenderlist;
-    @defenderlist{(keys(%{$$runDetails{killsEnemy}{$crName}}), keys(%{$$runDetails{damEnemy}{$crName}}), keys(%{$$runDetails{swingsAt}{$crName}}))}  = ();
+    #@defenderlist{(keys(%{$$runDetails{killsEnemy}{$crName}}), keys(%{$$runDetails{damEnemy}{$crName}}), keys(%{$$runDetails{swingsAt}{$crName}}))}  = ();
+    @defenderlist{(keys(%{$$runDetails{$crName}}))}  = ();
     foreach my $defender (sort keys %defenderlist) {
 
+	next if !$$runDetails{$crName}{$defender};
+
 	print SAVEFILE "<tr><td>$defender</td>";
-	print SAVEFILE "<td align=right>" . ($$runDetails{killsEnemy}{$crName}{$defender} // "") . "</td>";
+	print SAVEFILE "<td align=right>" . ($$runDetails{$crName}{$defender}{killsEnemy} // "") . "</td>";
 
 	print SAVEFILE "<td width=10%><table border=0><tr>";
-	printf SAVEFILE "<td width=8%% align=left>%s</td>", ($$runDetails{swingsAt}{$crName}{$defender} // "");
-	printf SAVEFILE "<td width=5%% align=center>%s</td>", ($$runDetails{hitsEnemy}{$crName}{$defender} // "");
-	printf SAVEFILE "<td width=5%% align=right>%s</td>", ($$RUN{critsEnemy}{$crName}{$defender} // "");
+	printf SAVEFILE "<td width=8%% align=left>%s</td>", ($$runDetails{$crName}{$defender}{swingsAt} // "");
+	printf SAVEFILE "<td width=5%% align=center>%s</td>", ($$runDetails{$crName}{$defender}{hitsEnemy} // "");
+	printf SAVEFILE "<td width=5%% align=right>%s</td>", ($$runDetails{$crName}{$defender}{critsEnemy} // "");
 	print SAVEFILE "</tr></table></td>";
 
 
 	print SAVEFILE "<td width=15%><table border=0><tr><td width=5% align=left>";
 	
-	if (exists($$runDetails{swingsAt}{$crName}{$defender}) && $$runDetails{swingsAt}{$crName}{$defender}>0) {
-	    $$runDetails{hitsEnemy}{$crName}{$defender} = 0 if (!exists($$runDetails{hitsEnemy}{$crName}{$defender}));
+	if (exists($$runDetails{$crName}{$defender}{swingsAt}) && $$runDetails{$crName}{$defender}{swingsAt}>0) {
+	    $$runDetails{$crName}{$defender}{hitsEnemy} = 0 if (!exists($$runDetails{$crName}{$defender}{hitsEnemy}));
 
-	    my $ptilde = ($$runDetails{hitsEnemy}{$crName}{$defender}+2) / ($$runDetails{swingsAt}{$crName}{$defender}+4);
-	    my $se = sqrt($ptilde*(1-$ptilde)/($$runDetails{swingsAt}{$crName}{$defender}+4));
-	    print SAVEFILE int(1000*($$runDetails{hitsEnemy}{$crName}{$defender}/$$runDetails{swingsAt}{$crName}{$defender}))/10 . "%</td><td align=center width=15%>(" . int(($ptilde-1.96*$se)*1000)/10 . " - " . int(($ptilde+1.96*$se)*1000)/10 .")</td>";
+	    my $ptilde = ($$runDetails{$crName}{$defender}{hitsEnemy}+2) / ($$runDetails{$crName}{$defender}{swingsAt}+4);
+	    my $se = sqrt($ptilde*(1-$ptilde)/($$runDetails{$crName}{$defender}{swingsAt}+4));
+	    print SAVEFILE int(1000*($$runDetails{$crName}{$defender}{hitsEnemy}/$$runDetails{$crName}{$defender}{swingsAt}))/10 . "%</td><td align=center width=15%>(" . int(($ptilde-1.96*$se)*1000)/10 . " - " . int(($ptilde+1.96*$se)*1000)/10 .")</td>";
 	}
 	else {
 	    print SAVEFILE "</td><td></td>";		    
 	}
 	print SAVEFILE "<td align=right width=5%>";
-	if (exists($$runDetails{swingsAt}{$crName}{$defender}) && $$runDetails{swingsAt}{$crName}{$defender}>0) {
-	    $$runDetails{missConcealed}{$crName}{$defender} = 0 if (!exists($$runDetails{missConcealed}{$crName}{$defender}));
-	    $$runDetails{hitsEnemy}{$crName}{$defender} = 0 if (!exists($$runDetails{hitsEnemy}{$crName}{$defender}));
-	    if ($$runDetails{swingsAt}{$crName}{$defender} == $$runDetails{missConcealed}{$crName}{$defender}) {
+	if (exists($$runDetails{$crName}{$defender}{swingsAt}) && $$runDetails{$crName}{$defender}{swingsAt}>0) {
+	    $$runDetails{$crName}{$defender}{missConcealed} = 0 if (!exists($$runDetails{$crName}{$defender}{missConcealed}));
+	    $$runDetails{$crName}{$defender}{hitsEnemy} = 0 if (!exists($$runDetails{$crName}{$defender}{hitsEnemy}));
+	    if ($$runDetails{$crName}{$defender}{swingsAt} == $$runDetails{$crName}{$defender}{missConcealed}) {
 		print SAVEFILE "0"
 	    }
 	    else {
-		print SAVEFILE int(1000*$$runDetails{hitsEnemy}{$crName}{$defender} / ($$runDetails{swingsAt}{$crName}{$defender} - $$runDetails{missConcealed}{$crName}{$defender}))/10 . "%";
+		print SAVEFILE int(1000*$$runDetails{$crName}{$defender}{hitsEnemy} / ($$runDetails{$crName}{$defender}{swingsAt} - $$runDetails{$crName}{$defender}{missConcealed}))/10 . "%";
 	    }
 	}
 	print SAVEFILE "</td>";
 	print SAVEFILE "</tr></table>";
 
-	print SAVEFILE "<td align=right>" . ($$runDetails{damEnemy}{$crName}{$defender} // "") . "</td></tr>";
+	print SAVEFILE "<td align=right>" . ($$runDetails{$crName}{$defender}{damEnemy} // "") . "</td></tr>";
     }
 
     print SAVEFILE "</table>";
@@ -2193,12 +2199,15 @@ sub _save_run_critter_enemyData_html {
     print SAVEFILE "<p><b>Damage received:</b><p>";
     print SAVEFILE "<font size=\"-1\">";
     print SAVEFILE "<table width=100% border=1><tr><th width=40% bgcolor=lightgray>Name</th><th bgcolor=lightgray width=6%>Deaths by</th><th bgcolor=lightgray width=10%>Attacks by</th><th bgcolor=lightgray width=25%>Hit %</th><th bgcolor=lightgray>Total damage</th></tr>";	    
-    foreach my $id (sort keys %{ $$runDetails{killsEnemy} }) {
-	if ( exists($$runDetails{killsEnemy}{$id}{$crName}) || exists($$runDetails{damEnemy}{$id}{$crName}) || exists($$runDetails{swingsAt}{$id}{$crName})) {
-	    print SAVEFILE "<tr><td>$id</td><td align=right>" . ($$runDetails{killsEnemy}{$id}{$crName} // "") . "</td>";
-	    print SAVEFILE "<td align=right>" . ($$runDetails{swingsAt}{$id}{$crName} // "") . "</td>";
-	    printf SAVEFILE "<td align=right>%5.1f</td>", ((exists($$runDetails{swingsAt}{$id}{$crName}) && exists($$runDetails{hitsEnemy}{$id}{$crName})) ? 100*($$runDetails{hitsEnemy}{$id}{$crName}/$$runDetails{swingsAt}{$id}{$crName}) : 0);
-	    print SAVEFILE "<td align=right>" . ($$runDetails{damEnemy}{$id}{$crName} // "") . "</td></tr>";
+    #foreach my $id (sort keys %{ $$runDetails{killsEnemy} }) {
+    #foreach my $id (sort keys %{ $runDetails }) {
+    foreach my $id (sort keys %{ $$runDetails{$crName} }) {
+	next if !$$runDetails{$id}{$crName};
+	if ( exists($$runDetails{$id}{$crName}{killsEnemy}) || exists($$runDetails{$id}{$crName}{damEnemy}) || exists($$runDetails{$id}{$crName}{swingsAt})) {
+	    print SAVEFILE "<tr><td>$id</td><td align=right>" . ($$runDetails{$id}{$crName}{killsEnemy} // "") . "</td>";
+	    print SAVEFILE "<td align=right>" . ($$runDetails{$id}{$crName}{swingsAt} // "") . "</td>";
+	    printf SAVEFILE "<td align=right>%5.1f</td>", ((exists($$runDetails{$id}{$crName}{swingsAt}) && exists($$runDetails{$id}{$crName}{hitsEnemy})) ? 100*($$runDetails{$id}{$crName}{hitsEnemy}/$$runDetails{$id}{$crName}{swingsAt}) : 0);
+	    print SAVEFILE "<td align=right>" . ($$runDetails{$id}{$crName}{damEnemy} // "") . "</td></tr>";
 	}
     }
     print SAVEFILE "</table>";
