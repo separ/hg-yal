@@ -50,7 +50,6 @@ my %emptyRun; # blueprint for run-data, filled with hg_run_init()
 my %currentRun; # data collection for current run
 my $RUN; # run data (hits, kills, dmg, ...)
 my $runData; # = $$RUN{data}; # run data of individual actors (mobs or party members)}
-my $runDetails;
 my $savedRun;
 
 my (%HGdata, $HGmobs, $HGareas, $HGmaps, $HGtoons, $HGnew);
@@ -755,9 +754,10 @@ sub parse_combat_line {
 	my $oDef = $$runData{$defender} // hg_run_new_actor($defender);
 
 	$$oAtt{damOut} += $total;                   # sum for attacker
+	$$oAtt{enemies}{$defender}{damEnemy} += $total;        # stores attacker and defender
+
 	$$oDef{damIn} += $total;                  # sum for defender
-	$$runDetails{$attacker}{$defender}{damEnemy} += $total;        # stores attacker and defender
-	$$runDetails{$defender}{$attacker} = undef if !exists($$runDetails{$defender}{$attacker});
+	$$oDef{enemies}{$attacker} = undef if !exists($$oDef{enemies}{$attacker});
 	
 	my $meleehit = 0;
 	$meleehit = 1 if ($damages =~ /\d+ Physical/); # TODO: find out if we catch bigby spells here
@@ -827,10 +827,11 @@ sub parse_combat_line {
 
 	$$killer{kills}++;
 	$$killer{lastKilled} = $2;
+	$$killer{enemies}{$2}{killsEnemy}++;
+
 	$$killed{deaths}++;
 	$$killed{lastKiller} = $1;
-	$$runDetails{$1}{$2}{killsEnemy}++;
-	$$runDetails{$2}{$1} = undef if !exists($$runDetails{$2}{$1});
+	$$killed{enemies}{$1} = undef if !exists($$killed{enemies}{$1});
 
 	if (exists($$RUN{partyList}{$2})) {
 	    # Start a death timer if it was a party member who died
@@ -1255,21 +1256,22 @@ sub process_attack {
     my $oDef = $$runData{$defender} // hg_run_new_actor($defender);
 
     $$oAtt{swingsOut}++;
+    $$oAtt{enemies}{$defender}{swingsAt}++;
+
     $$oDef{swingsIn}++;
-    $$runDetails{$attacker}{$defender}{swingsAt}++;
-    $$runDetails{$defender}{$attacker} = undef if !exists($$runDetails{$defender}{$attacker});
-    
+    $$oDef{enemies}{$attacker} = undef if !exists($$oDef{enemies}{$attacker});
+
     # Make sure to update the AB and AC estimate
     $AB{$attacker} = 0 if (!exists($AB{$attacker}));
     $AB{$attacker} = $ab if ($ab > $AB{$attacker});
-    
+
     if ($status eq "hit" || $status eq "crit") {
 	$$oAtt{hits}++;
-	$$runDetails{$attacker}{$defender}{hitsEnemy}++;
+	$$oAtt{enemies}{$defender}{hitsEnemy}++;
 
 	if ($status eq "crit") {
 	    $$oAtt{crits}++;
-	    $$runDetails{$attacker}{$defender}{critsEnemy}++;
+	    $$oAtt{enemies}{$defender}{critsEnemy}++;
 	}
 	
 	$$RUN{hits}++ if ($attacker eq $$RUN{toon});
@@ -1281,7 +1283,7 @@ sub process_attack {
 
 	# special attacks
 	# TODO: this can't be all ...
-	$$RUN{disarms}{$attacker}{$defender}++ if ($attacktype =~ /disarm/i);
+	$$oAtt{enemies}{$defender}{disarms}++ if ($attacktype =~ /disarm/i);
     }
     elsif ($status eq "miss" && $roll>1) {
 	$$oDef{dodge}++;
@@ -1293,7 +1295,7 @@ sub process_attack {
 	$$oDef{dodge}++;
 	$$oDef{conceal} = $1 if (!exists($$oDef{conceal}));
 	$$oDef{conceal} = $1 if $1 > $$oDef{conceal};
-	$$runDetails{$attacker}{$defender}{missConcealed}++;
+	$$oAtt{enemies}{$defender}{missConcealed}++;
 	$status = "c$1%"; # for better display?
     }
     else {
@@ -2080,7 +2082,7 @@ sub _save_run_critter_baseData_html {
     my $crData = $$runData{$crName};
 
     printf SAVEFILE "Max AB: %3d<br>", ($AB{$crName} // 0);
-    print SAVEFILE "Max AC: > " . (exists($MaxAC{$crName}) ? $MaxAC{$crName}+1 : "")  . "<br>";
+    print SAVEFILE "Max AC: > " . (exists($MaxAC{$crName}) ? 1+$MaxAC{$crName} : "")  . "<br/>";
     if (exists($SR{$crName})) {
 	print SAVEFILE "Max SR: $SR{$crName}<br/>";
     }
@@ -2143,7 +2145,7 @@ sub _save_run_critter_baseData_html {
 
 sub _save_run_critter_enemyData_html {
     my $crName = shift;
-    my $crDetails = $$runDetails{$crName};
+    my $enemies = $$runData{$crName}{enemies};
 
     print SAVEFILE "<b>Damage dealt:</b><p>";
     print SAVEFILE "<font size=\"-1\">";
@@ -2154,9 +2156,9 @@ sub _save_run_critter_enemyData_html {
 	"<th bgcolor=lightgray width=25%>Hit %</th>".
 	"<th bgcolor=lightgray>Total damage</th></tr>";
 
-    foreach my $defender (sort keys %{ $crDetails }) {
+    foreach my $defender (sort keys %{ $enemies }) {
 
-	my $defD = $$crDetails{$defender};
+	my $defD = $$enemies{$defender};
 	next if !$defD;
 
 	print SAVEFILE "<tr><td>$defender</td>";
@@ -2167,7 +2169,6 @@ sub _save_run_critter_enemyData_html {
 	printf SAVEFILE "<td width=5%% align=center>%s</td>", ($$defD{hitsEnemy} // "");
 	printf SAVEFILE "<td width=5%% align=right>%s</td>", ($$defD{critsEnemy} // "");
 	print SAVEFILE "</tr></table></td>";
-
 
 	print SAVEFILE "<td width=15%><table border=0><tr><td width=5% align=left>";
 	
@@ -2210,8 +2211,8 @@ sub _save_run_critter_enemyData_html {
 	"<th bgcolor=lightgray width=25%>Hit %</th>".
 	"<th bgcolor=lightgray>Total damage</th></tr>";
 
-    foreach my $id (sort keys %{ $crDetails }) {
-	my $revD = $$runDetails{$id}{$crName}; # ref to reverse (attacker/defender -> defender/attacker) data
+    foreach my $id (sort keys %{ $enemies }) {
+	my $revD = $$runData{$id}{enemies}{$crName}; # ref to reverse (attacker/defender -> defender/attacker) data
 	next if !$revD;
 	if (exists($$revD{killsEnemy}) || exists($$revD{damEnemy}) || exists($$revD{swingsAt})) {
 	    print SAVEFILE "<tr><td>$id</td><td align=right>" . ($$revD{killsEnemy} // "") . "</td>";
@@ -2349,7 +2350,6 @@ sub hg_run_init {
     %emptyRun = (
 	# who is playing
 	data => {}, # keyed by actor
-	details => {}, # keyed by {attacker}{defender}
 	name => 'current',
 	toon => '', # name of our current toon
 	player => '', # our login-name
@@ -2409,7 +2409,6 @@ sub hg_run_reset {
 	}
     }
     $runData = $$RUN{data}; # run data of individual actors (mobs or party members)}
-    $runDetails = $$RUN{details}; # more detailed data attacker -> defender
 }
 
 sub hg_run_new_actor {
@@ -2587,7 +2586,6 @@ sub yal_parse_open {
 	    }
 	    undef $savedRun;
 	    $runData = $$RUN{data}; # run data of individual actors (mobs or party members)}
-	    $runDetails = $$RUN{details}; # more detailed data attacker -> defender
 	}
     }
 }
