@@ -600,46 +600,34 @@ sub yal_parse_log {
 # saves and ability checks
 sub parse_checks_and_saves {
 
+    my $chance = 0;
+
     # ability checks
     #if (/^(.+) : (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) vs. (.+) : \*(success|failure|success not possible)\* : (.+ vs\. DC: (\d+).)/) {
-    if (/^(.+) : (Str|Dex|Con|Int|Wis|Cha)\w* vs. (.+) : \*(success|failure|automatic failure|success not possible)\*? : (.+ \+ \d+ = \d+ \D+ (\d+).)/) {
-	my ($target, $ability, $source, $status, $details, $dc) = ($1, $2, $3, $4, $5, $6);
-	#$AbilityChecks{$3}{$2} = $6;
+    if (my ($target, $ability, $source, $status, $details, $base, $dc) =
+	/^(.+) : (Str|Dex|Con|Int|Wis|Cha)\w* vs. (.+) : \*(success|failure|automatic failure|success not possible)\*? : (.+ \+ (\d+) = \d+ \D+ (\d+).)/
+    ) {
 	$$runData{$source}{base}{abilityCheck}{$ability} = $dc;
-	#$YW{saves} -> insert('end',$_, 'lightblue');
-	$YW{saves} -> insert('end', "STAT $ability *$status* $details vs. $source\n", 'lightblue');
+
+	# output data
+	if ($OPTIONS{"dcpercent"}==1) {
+	    my $maxRes = 20 + $base; # maximum possible roll-result
+	    $chance = 5 * min(20, 1 + $maxRes - $dc) if $maxRes >= $dc;
+	}
+	append_check_line($YW{saves}, 'STAT', $target, "$ability vs. $source", $status, $details, $chance);
 	return 1;
     }
 
-    #if (/^(.+) : (Will|Fortitude|Reflex) Save : /) {
-    if (/^(.+?)( : .+)? : (Will|Fortitude|Reflex) Save : \*(.*)\* : (.*)/) {
-	if ($1 eq $$RUN{toon}) {
-	    $YW{saves} -> insert('end', "SAVE $3 *$4* $5".($2 // '')."\n", 'white');
-	} else {
-	    $YW{saves} -> insert('end',$_, 'white');
+    if (my ($target, $special, $saveType, $vsStr, $source, $status, $details, $save, $dc) =
+	/^(.+?)( : .+)? : (Will|Fortitude|Reflex) Save( vs. (.+))? : \*(success|failure)\* : (\(\d+ \+ (\d+) = \d+ \D+ (\d+)\))$/
+    ) {
+	if ($OPTIONS{"dcpercent"}==1) {
+	    my $maxRes = 20 + $save; # maximum possible roll-result
+	    $chance = 5 * min(19, 1 + $maxRes - $dc) if $maxRes >= $dc;
 	}
-	return 1;
-    }
+	append_check_line($YW{saves}, 'SAVE', $target, $saveType.($vsStr // ''), $status, $details.($special // ''), $chance);
 
-    if (/^(.+?)( : .+)? : (Will|Fortitude|Reflex) Save vs. (.+) : \*(success|failure)\* : (\(\d+ \+ (\d+) = \d+ vs\. DC: (\d+)\))$/) {
-	my ($target, $special, $saveType, $source, $status, $details, $save, $dc) = ($1, $2, $3, $4, $5, $6, $7, $8);
-	if ($$RUN{toon} eq $target) {
-	    #$YW{saves} -> insert('end',$_, 'white');
-	    $YW{saves} -> insert('end', "SAVE $saveType vs. $source *$status* $details".($special // '')."\n", 'white');
-	}
-	else {
-	    chomp;
-	    $YW{saves} -> insert('end',$_, 'lightblue');
-	    if ($OPTIONS{"dcpercent"}==1) {
-		#my $chance = max(1, min(20, (($dc-1) - $save))) * 5;
-		my $maxRes = 20 + $save; # maximum possible roll-result
-		my $chance = 0;
-		$chance = 5 * min(19, 1 + $maxRes - $dc) if $maxRes >= $dc;
-		$YW{saves} -> insert('end', " ($chance%)\n", 'yellow');
-	    } else {
-		$YW{saves} -> insert('end',"\n");
-	    }
-	}
+	$source = 'base' if !$source;
 	my $s = $$runData{$target}{base}{saves}{$saveType} // ($$runData{$target}{base}{saves}{$saveType} = {});
 	$$s{min}{$source} = $save if $save < ($$s{min}{$source} // 999);
 	$$s{max}{$source} = $save if $save > ($$s{max}{$source} // 0);
@@ -647,25 +635,56 @@ sub parse_checks_and_saves {
     }
 
     #if (/^(.+) : (Discipline|Concentration|Taunt|Bluff) vs. (.+) : \*(success|failure|success not possible)\* : .+ vs\. DC: (\d+)/) {
-    if (/^(.+) : (Discipline|Concentration|Taunt|Bluff)( vs. (.+))? : \*(success|failure|success not possible)\* : (.+ vs\. DC: (\d+).)/) {
-	my ($target, $skill, $source, $vsStr, $status, $details, $dc) = ($1, $2, $4, $5, $6, $7);
+    if (my ($target, $skill, $vsStr, $source, $status, $details, $base, $dc) =
+	/^(.+) : (Disc\w*|Concentration|Taunt|Bluff)( vs. (.+))? : \*(success|failure|success not possible)\* : (.+ \+ (\d+) = \d+ \D+ (\d+).)/
+    ) {
+	# save check-dc
 	$$runData{$source}{base}{skillCheck}{$skill} = $dc if $source;
-	#$SkillChecks{$source}{$skill} = $dc if $source; #$5;
-	if ($$RUN{toon} eq $target) {
-	    #$YW{saves} -> insert('end',$_, 'white');
-	    $YW{saves} -> insert('end', "SKILL $skill *$status* $details".($vsStr // '')."\n", 'white');
-	} else {
-	    $YW{saves} -> insert('end',$_, 'lightblue');
+
+	# output data
+	if ($OPTIONS{"dcpercent"}==1) {
+	    my $maxRes = 20 + $base; # maximum possible roll-result
+	    $chance = 5 * min(20, 1 + $maxRes - $dc) if $maxRes >= $dc;
 	}
+	append_check_line($YW{saves}, 'SKILL', $target, $skill.($vsStr // ''), $status, $details, $chance);
 	return 1;
     }
 
     # Skills
-    if (/^(.+) : (.+) vs\. (.+) : \*(success|failure)\* : /) {
-	# if ($1 eq $$RUN{toon})
-	$YW{saves} -> insert('end',$_, 'yellow');
+    if (my ($target, $what, $source, $status, $details, $base, $dc) = /^(.+) : (\w+) vs\. (.+) : \*(success|failure)\* : (.+ \+ (\d+) = \d+ \D+ (\d+).)/) {
+	# output data
+	if ($OPTIONS{"dcpercent"}==1) {
+	    my $maxRes = 20 + $base; # maximum possible roll-result
+	    $chance = 5 * min(20, 1 + $maxRes - $dc) if $maxRes >= $dc;
+	}
+	#$YW{saves} -> insert('end',$_, 'yellow');
+	append_check_line($YW{saves}, 'SKILL', $target, $what, $status, "$details vs. $source", $chance);
 	return 1;
     }
+}
+
+sub append_check_line {
+    my ($widget, $type, $target, $what, $status, $details, $chance) = @_;
+    my $tgSelf = $$RUN{toon} eq $target;
+
+    if ($tgSelf) {
+	$widget -> insert('end', "<$type", 'lightblue');
+    }
+    else {
+	$widget -> insert('end', "$type> $target:", 'lightblue');
+    }
+    $widget -> insert('end', " $what");
+    $widget -> insert('end', " *$status*", ($status eq 'success') ? ($tgSelf ? 'green' : 'red') : ($tgSelf ? 'red' : 'green'));
+
+    if ($OPTIONS{"dcpercent"} == 1) {
+	$widget -> insert('end', " ($chance%)",
+	    ($chance > 80)
+		? ($tgSelf ? 'green' : 'red')
+		: (($chance > 20) ? 'yellow' : ($tgSelf ? 'red' : 'green'))
+	);
+    }
+
+    $widget -> insert('end', " $details\n");
 }
 
 # chat log
@@ -2471,9 +2490,9 @@ sub configure_fonts {
 				  -font=>[-family=>$OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}]);
 	$YW{hits_out}->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font-hit"}, -size=>$OPTIONS{"fontsize-hit"}]);
-	$YW{saves}->tagConfigure($colour,
+	$YW{saves}->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font-resist"}, -size=>$OPTIONS{"fontsize-resist"}]);
-	$YW{resists}->tagConfigure($colour,
+	$YW{resists}->tagConfigure($colour, -foreground => "$colour",
 				  -font=>[-family=>$OPTIONS{"font-resist"}, -size=>$OPTIONS{"fontsize-resist"}]);
 	$YW{t_chatlog}->tagConfigure($colour, -foreground=>"$colour");
 
