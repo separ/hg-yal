@@ -61,23 +61,6 @@ my $shamelessadvertising = 0;
 
 my $debug = 0;
 
-#
-# The following hashes keeps most of the information
-#
-
-my %AB = ();
-my %MinAC = ();
-my %MaxAC = ();
-my %SR = ();
-my %TR = ();
-
-#
-# The following hashes are more detailed and contain information split on attacker and defender. everything should eventually go into those as the program evolves
-#
-my %Saves = ();
-my %AbilityChecks = ();
-my %SkillChecks = ();
-
 my %DMG_TYPE_ESO = (
     'Internal' => 1, 'Vile' => 1, 'Sacred' => 1, 'Psionic' => 1, 'Ectoplasmic' => 1
 );
@@ -413,7 +396,7 @@ sub yal_parse_log {
 	}	
 	next if (/^(.+) casting (.+)$/);
 
-	# Spell penetration: our toon tried to beats an enemies SR
+	# Spell penetration: our toon tried to beat an enemies SR
 	if (/^(.+) : Spell Penetration : \*(success|failure)\* : \((\d+) \+ (\d+) .+ vs. SR: (\d+)\)$/) {
 	    $YW{resists} -> insert('end', "SP: $1 : ", 'lightblue');
 	    if ($2 eq "success") {
@@ -432,12 +415,8 @@ sub yal_parse_log {
 		$YW{resists} -> insert('end', "\n");
 	    }
 
-	    if (exists($SR{$1})) {
-		$SR{$1} = $5 if ($5>$SR{$1});
-	    }
-	    else {
-		$SR{$1} = $5;
-	    }
+	    $$runData{$1}{base}{sr} = $5 if $5 > ($$runData{$1}{base}{sr} // 0);
+
 	    next;	   
 	}
 
@@ -451,13 +430,8 @@ sub yal_parse_log {
 	# Turning
 	if (/^(.+) : Turn (Outsider|Construct|Vermin|Undead) : \*(success|failure)\* : \((\d+) \+ (\d+) .+ vs. TR: (\d+)\)$/) {
 	    $YW{resists} -> insert('end', "Turn $2: $1 : *$3* : ($4 + $5 = " . ($4 + $5) . " vs. SR: $6 (" . (21 - (max(1, min(20, ($6 - $5)))))*5 . '%)'."\n", 'lightblue');
-
-	    if (exists($TR{$1})) {
-		$TR{$1} = $5 if ($6>$TR{$1});
-	    }
-	    else {
-		$TR{$1} = $5;
-	    }
+	    $$runData{$1}{base}{tr} = $5 if $6 > ($$runData{$1}{base}{tr} // 0);
+	    # TODO: if (!$runData{$1}{base}{race}) ... $2
 	    next;	   
 	}
 	
@@ -627,11 +601,13 @@ sub yal_parse_log {
 sub parse_checks_and_saves {
 
     # ability checks
-    if (/^(.+) : (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) vs. (.+) : \*(success|failure|success not possible)\* : (.+ vs\. DC: (\d+).)/) {
-	$AbilityChecks{$3}{$2} = $6;
+    #if (/^(.+) : (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) vs. (.+) : \*(success|failure|success not possible)\* : (.+ vs\. DC: (\d+).)/) {
+    if (/^(.+) : (Str|Dex|Con|Int|Wis|Cha)\w* vs. (.+) : \*(success|failure|automatic failure|success not possible)\*? : (.+ \+ \d+ = \d+ \D+ (\d+).)/) {
+	my ($target, $ability, $source, $status, $details, $dc) = ($1, $2, $3, $4, $5, $6);
+	#$AbilityChecks{$3}{$2} = $6;
+	$$runData{$source}{base}{abilityCheck}{$ability} = $dc;
 	#$YW{saves} -> insert('end',$_, 'lightblue');
-#print "ability check for [$1]\n" if ($1 ne $$RUN{toon});
-	$YW{saves} -> insert('end', "STAT $2 *$4* $5 vs. $3\n", 'lightblue');
+	$YW{saves} -> insert('end', "STAT $ability *$status* $details vs. $source\n", 'lightblue');
 	return 1;
     }
 
@@ -645,39 +621,39 @@ sub parse_checks_and_saves {
 	return 1;
     }
 
-    #if (/^(.+) : (Will|Fortitude|Reflex) Save vs. (.+) : \*(success|failure)\* : \(\d+ \+ (\d+) = \d+ vs\. DC: (\d+)\)$/) {
     if (/^(.+?)( : .+)? : (Will|Fortitude|Reflex) Save vs. (.+) : \*(success|failure)\* : (\(\d+ \+ (\d+) = \d+ vs\. DC: (\d+)\))$/) {
-	if ($$RUN{toon} eq $1) {
+	my ($target, $special, $saveType, $source, $status, $details, $save, $dc) = ($1, $2, $3, $4, $5, $6, $7, $8);
+	if ($$RUN{toon} eq $target) {
 	    #$YW{saves} -> insert('end',$_, 'white');
-	    $YW{saves} -> insert('end', "SAVE $3 vs. $4 *$5* $6".($2 // '')."\n", 'white');
+	    $YW{saves} -> insert('end', "SAVE $saveType vs. $source *$status* $details".($special // '')."\n", 'white');
 	}
 	else {
 	    chomp;
 	    $YW{saves} -> insert('end',$_, 'lightblue');
 	    if ($OPTIONS{"dcpercent"}==1) {
-		#$YW{saves} -> insert('end', " (" .((max(1, min(20, (($6-1) - $5)))))*5 . "%)"."\n", 'yellow');
-		$YW{saves} -> insert('end', " (" .((max(1, min(20, (($8-1) - $7)))))*5 . "%)"."\n", 'yellow');
+		#my $chance = max(1, min(20, (($dc-1) - $save))) * 5;
+		my $maxRes = 20 + $save; # maximum possible roll-result
+		my $chance = 0;
+		$chance = 5 * min(19, 1 + $maxRes - $dc) if $maxRes >= $dc;
+		$YW{saves} -> insert('end', " ($chance%)\n", 'yellow');
 	    } else {
 		$YW{saves} -> insert('end',"\n");
 	    }
 	}
-	#$Saves{$1}{$2}{"min"}{$3} = $5 if (!exists($Saves{$1}{$2}{"min"}{$3}));
-	#$Saves{$1}{$2}{"max"}{$3} = $5 if (!exists($Saves{$1}{$2}{"max"}{$3}));
-	#$Saves{$1}{$2}{"min"}{$3} = $5 if $5 < $Saves{$1}{$2}{"min"}{$3};
-	#$Saves{$1}{$2}{"max"}{$3} = $5 if $5 > $Saves{$1}{$2}{"max"}{$3};
-	$Saves{$1}{$3}{"min"}{$4} = $7 if (!exists($Saves{$1}{$3}{"min"}{$4}) || ($7 < $Saves{$1}{$3}{"min"}{$4}));
-	$Saves{$1}{$3}{"max"}{$4} = $7 if (!exists($Saves{$1}{$3}{"max"}{$4}) || ($7 > $Saves{$1}{$3}{"max"}{$4}));
-#print "save: n='$1', s='$3', ?='$4', v='$7'\n";
+	my $s = $$runData{$target}{base}{saves}{$saveType} // ($$runData{$target}{base}{saves}{$saveType} = {});
+	$$s{min}{$source} = $save if $save < ($$s{min}{$source} // 999);
+	$$s{max}{$source} = $save if $save > ($$s{max}{$source} // 0);
 	return 1;
     }
 
     #if (/^(.+) : (Discipline|Concentration|Taunt|Bluff) vs. (.+) : \*(success|failure|success not possible)\* : .+ vs\. DC: (\d+)/) {
     if (/^(.+) : (Discipline|Concentration|Taunt|Bluff)( vs. (.+))? : \*(success|failure|success not possible)\* : (.+ vs\. DC: (\d+).)/) {
-	# TODO: rework collecting saves and stuff
-	$SkillChecks{$3}{$2} = $7 if $3; #$5;
-	if ($$RUN{toon} eq $1) {
+	my ($target, $skill, $source, $vsStr, $status, $details, $dc) = ($1, $2, $4, $5, $6, $7);
+	$$runData{$source}{base}{skillCheck}{$skill} = $dc if $source;
+	#$SkillChecks{$source}{$skill} = $dc if $source; #$5;
+	if ($$RUN{toon} eq $target) {
 	    #$YW{saves} -> insert('end',$_, 'white');
-	    $YW{saves} -> insert('end', "SKILL $2 *$5* $6".($3 // '')."\n", 'white');
+	    $YW{saves} -> insert('end', "SKILL $skill *$status* $details".($vsStr // '')."\n", 'white');
 	} else {
 	    $YW{saves} -> insert('end',$_, 'lightblue');
 	}
@@ -1262,8 +1238,7 @@ sub process_attack {
     $$oDef{enemies}{$attacker} = undef if !exists($$oDef{enemies}{$attacker});
 
     # Make sure to update the AB and AC estimate
-    $AB{$attacker} = 0 if (!exists($AB{$attacker}));
-    $AB{$attacker} = $ab if ($ab > $AB{$attacker});
+    $$oAtt{base}{ab} = $ab if $ab > ($$oAtt{base}{ab} // 0);
 
     if ($status eq "hit" || $status eq "crit") {
 	$$oAtt{hits}++;
@@ -1275,10 +1250,11 @@ sub process_attack {
 	}
 	
 	$$RUN{hits}++ if ($attacker eq $$RUN{toon});
-	if ($roll<20) {
-	    if ((!exists($MinAC{$defender})) || ($ab+$roll < $MinAC{$defender})) {
-		$MinAC{$defender} = $ab+$roll;
-	    }
+	if ($roll < 20) {
+	    $$oDef{base}{MinAC} = $ab+$roll if ($ab+$roll < ($$oDef{base}{MinAC} // 999));
+	    #if ((!exists($MinAC{$defender})) || ($ab+$roll < $MinAC{$defender})) {
+		#$MinAC{$defender} = $ab+$roll;
+	    #}
 	}
 
 	# special attacks
@@ -1287,8 +1263,9 @@ sub process_attack {
     }
     elsif ($status eq "miss" && $roll>1) {
 	$$oDef{dodge}++;
-	$MaxAC{$defender} = 0 if (!exists($MaxAC{$defender}));
-	$MaxAC{$defender} = $ab+$roll if ($ab+$roll > $MaxAC{$defender});
+	$$oDef{base}{MaxAC} = $ab+$roll if ($ab+$roll > ($$oDef{base}{MaxAC} // 0));
+	#$MaxAC{$defender} = 0 if (!exists($MaxAC{$defender}));
+	#$MaxAC{$defender} = $ab+$roll if ($ab+$roll > $MaxAC{$defender});
     }
     elsif ($status =~ /(\d+)\%/) {
 	return if $status eq '100%'; # anti-exploit, not real conceal, so skip it
@@ -1824,30 +1801,14 @@ sub dialog_detailed_summary {
 	    else {
 		$grid->itemCreate($_, 0, -text => $_);
 	    }
-	    if (exists($AB{$_})) {
-		$grid->itemCreate($_, 1, -text => $AB{$_});
-	    }
-	    else {
-		$grid->itemCreate($_, 1, -text => "");
-	    }
-	    $MinAC{$_} = "" if (!exists($MinAC{$_}));
-	    $MaxAC{$_} = "" if (!exists($MaxAC{$_}));
-	    $grid->itemCreate($_, 2, -text => ($MinAC{$_} . " - " . $MaxAC{$_}));
 
-	    if (exists($$runData{$_}{conceal})) {
-		$grid->itemCreate($_, 3, -text => $$runData{$_}{conceal});
-	    }
-	    else {
-		$grid->itemCreate($_, 3, -text => "");
-	    }
+	    my $crBase = $$runData{$_}{base};
+	    $grid->itemCreate($_, 1, -text => $$crBase{ab} // '');
+	    $grid->itemCreate($_, 2, -text => (($$crBase{MinAC} // '?') . " - " . ($$crBase{MaxAC} // '?')));
 
+	    $grid->itemCreate($_, 3, -text => $$runData{$_}{conceal} // '');
 
-	    if (exists($SR{$_})) {
-		$grid->itemCreate($_, 4, -text => $SR{$_});
-	    }
-	    else {
-		$grid->itemCreate($_, 4, -text => "");
-	    }
+	    $grid->itemCreate($_, 4, -text => $$crBase{sr} // '');
 	    
 	    $grid->itemCreate($_, 5, -text => $$runData{$_}{kills});
 	    $grid->itemCreate($_, 6, -text => $$runData{$_}{deaths});
@@ -1862,7 +1823,7 @@ sub dialog_detailed_summary {
 	    $imm .= "DM " if (exists($$runData{$_}{immuneTo}{"Death Magic"}));
 	    $grid->itemCreate($_, 7, -text => $imm);
 
-
+	    # TODO: 8 -> deals damage
 	    $grid->itemCreate($_, 9, -text => $$runData{$_}{damInStr});
 	}
 
@@ -2062,6 +2023,7 @@ sub _save_run_toon_summary_html {
 sub _save_run_critter_details_html {
     my $crName = shift;
     return if !$crName; # TODO: this shouldn't happen - find out why
+    return if hg_ignore_enemy($crName);
 
     print SAVEFILE "<div class=\"combatant\"><h3><a name=\"$crName\">$crName</a></h3>\n";
     print SAVEFILE "<table width=100%><tr valign=top>";
@@ -2080,18 +2042,15 @@ sub _save_run_critter_details_html {
 sub _save_run_critter_baseData_html {
     my $crName = shift;
     my $crData = $$runData{$crName};
+    my $crBase = $$crData{base};
 
-    printf SAVEFILE "Max AB: %3d<br>", ($AB{$crName} // 0);
-    print SAVEFILE "Max AC: > " . (exists($MaxAC{$crName}) ? 1+$MaxAC{$crName} : "")  . "<br/>";
-    if (exists($SR{$crName})) {
-	print SAVEFILE "Max SR: $SR{$crName}<br/>";
-    }
-    else {
-	print SAVEFILE "Max SR: -<br>";
-    }
-    if (exists($TR{$crName})) {
-	print SAVEFILE "Max TR: $TR{$crName}<br/>";
-    }
+    printf SAVEFILE "Max AB: %s<br/>", ($$crBase{ab} // '?');
+    print SAVEFILE "Max AC: " . (exists($$crData{base}{MaxAC}) ? ('> '. (1 + $$crData{base}{MaxAC})) : "?")  . "<br/>";
+    #print SAVEFILE "Max AC: " . ($$crBase{MinAC} // '?') . ' .. ' . ($$crBase{MaxAC} // '?')  . "<br/>";
+
+    print SAVEFILE "Max SR: " . ($$crBase{sr} // "?")  . "<br/>";
+    print SAVEFILE "Max TR: " . ($$crBase{tr} // "?")  . "<br/>";
+
     printf SAVEFILE "Max conceal: %4.0f<br/>", ($$crData{conceal} // 0);
     print SAVEFILE "Kills: $$crData{kills}<br/>";
     printf SAVEFILE "Deaths: %4d<br/>", ($$crData{deaths} // 0);
@@ -2100,22 +2059,23 @@ sub _save_run_critter_baseData_html {
     printf SAVEFILE "Swings/Hits/Crits dealt:<br/> %4.0f/%4.0f/%4.0f<br/>", ($$crData{swingsOut} // 0), ($$crData{hits} // 0), ($$crData{crits} // 0);
 
     print SAVEFILE "<p><div class=\"vulnBox\"><b>Max saves:</b><br>";
-    if (exists($Saves{$crName})) {
+
+    if (exists($$crBase{saves})) {
 	my $maxsave = 0;
-	foreach my $savetype (keys(%{$Saves{$crName}{"Fortitude"}{"max"}})) {
-	    $maxsave = max($Saves{$crName}{"Fortitude"}{"max"}{$savetype}, $maxsave);
+	foreach my $savetype (keys(%{ $$crBase{saves}{"Fortitude"}{"max"} })) {
+	    $maxsave = max($$crBase{saves}{"Fortitude"}{"max"}{$savetype}, $maxsave);
 	}
-	print SAVEFILE "F: " . ($maxsave>0 ? $maxsave : "-") .", ";
+	print SAVEFILE "F: " . ($maxsave || "?") .", ";
 	$maxsave=0;
-	foreach my $savetype (keys(%{$Saves{$crName}{"Reflex"}{"max"}})) {
-	    $maxsave = max($Saves{$crName}{"Reflex"}{"max"}{$savetype}, $maxsave);
+	foreach my $savetype (keys(%{ $$crBase{saves}{"Reflex"}{"max"} })) {
+	    $maxsave = max($$crBase{saves}{"Reflex"}{"max"}{$savetype}, $maxsave);
 	}
-	print SAVEFILE "R: " . ($maxsave>0 ? $maxsave : "-") .", ";
+	print SAVEFILE "R: " . ($maxsave || "?") .", ";
 	$maxsave=0;
-	foreach my $savetype (keys(%{$Saves{$crName}{"Will"}{"max"}})) {
-	    $maxsave = max($Saves{$crName}{"Will"}{"max"}{$savetype}, $maxsave);
+	foreach my $savetype (keys(%{ $$crBase{saves}{"Will"}{"max"} })) {
+	    $maxsave = max($$crBase{saves}{"Will"}{"max"}{$savetype}, $maxsave);
 	}	      
-	print SAVEFILE "W: " . ($maxsave>0 ? $maxsave : "-") ."<br></div>";
+	print SAVEFILE "W: " . ($maxsave || "?") ."<br/></div>";
     }
     else {
 	print SAVEFILE "-<br></div>";
@@ -2125,20 +2085,23 @@ sub _save_run_critter_baseData_html {
     printf SAVEFILE "<p><div class=\"vulnBox\" title=\"The box lists the most common damage types that were taken\"><b>Damage taken:</b><br>%s<br></div>", exists($$crData{damInStr}) ? join("<br>",split(/, /, $$crData{damInStr})) : "";
 
     printf SAVEFILE "<p><div class=\"vulnBox\" title=\"The box lists the elements/exotics that this mob might be immune to. Note this is influenced by non-resistable damage\"><b>Damage immunity:</b><br>%s<br></div>", (exists($$HGmobs{$crName}{immsEl}) ? join("<br>",sort(keys(%{$$HGmobs{$crName}{immsEl}}))) : "");
-    
+    my $str = ' ?';
+    if ($$crData{damOutTypes}) {
+	$str = '<br/>'. join('<br/>', map { "$_: $$crData{damOutTypes}{$_}" } keys %{ $$crData{damOutTypes} });
+    }
     printf SAVEFILE "<p><div class=\"vulnBox\" title=\"Guesstimate of damage types done when you are hit by this PC/monster\"><b>Damage types dealt:</b><br>%s<br></div>", exists($$crData{damOutTypes}) ? join("<br>", keys %{ $$crData{damOutTypes} } ) : "No clue";
 
-    if (exists($AbilityChecks{$crName})) {
+    if (exists($$crBase{abilityCheck})) {
 	print SAVEFILE  "<p title=\"Notice these can be influenced by gear\"><b>Ability Checks:</b><br>";
-	foreach my $abcheck (keys(%{$AbilityChecks{$crName}})) {
-	    print SAVEFILE substr($abcheck, 0, 3). ": " . $AbilityChecks{$crName}{$abcheck} . "   ";
+	foreach my $abcheck (keys(%{ $$crBase{abilityCheck} })) {
+	    print SAVEFILE substr($abcheck, 0, 3). ": " . $$crBase{abilityCheck}{$abcheck} . "   ";
 	}
     }
 
-    if (exists($SkillChecks{$crName})) {
+    if (exists($$crBase{skillCheck})) {
 	print SAVEFILE  "<p title=\"Notice these can be influenced by gear\"><b>Skill Checks:</b><br>";
-	foreach my $abcheck (keys(%{$SkillChecks{$crName}})) {
-	    print SAVEFILE substr($abcheck, 0, 4). ": " . $SkillChecks{$crName}{$abcheck} . "   ";
+	foreach my $abcheck (keys(%{ $$crBase{skillCheck} })) {
+	    print SAVEFILE substr($abcheck, 0, 4). ": " . $$crBase{skillCheck}{$abcheck} . "   ";
 	}
     }
 }
@@ -2438,7 +2401,17 @@ sub hg_run_new_actor {
 	    #effects => {},
     };
     $$RUN{data}{$name} = $a;
-    # TODO: check if $name is partymember, known mob, ... or unknown thing
+
+    # check if $name is partymember, known mob, ... or unknown thing
+    if ($$RUN{toonList}{$name}) { # player toon
+	$$a{base} = $$HGtoons{$name} = {};
+    }
+    elsif ($$HGmobs{$name}) { # known mob
+	$$a{base} = $$HGmobs{$name};
+    }
+    else { # unidentified ...
+	$$a{base} = $$HGnew{$name} = {};
+    }
     return $a;
 }
 
@@ -2455,10 +2428,17 @@ sub partymember {
 
 sub new_party_member {
     my $id = shift @_;
+    return if $$RUN{partyList}{$id};
     # TODO: check for and do something about leading whitespace
     $$RUN{partyList}{$id} = 1;
     $$RUN{toonList}{$id} = 1;
-    hg_run_new_actor($id, 1) if !$$runData{$id};
+    my $a = $$runData{$id};
+    if (!$a) {
+	$a = hg_run_new_actor($id, 1);
+    } elsif ($$HGnew{$id}) {
+	$$HGtoons{$id} = $$HGnew{$id};
+	delete $$HGnew{$id};
+    }
 }
 
 #
