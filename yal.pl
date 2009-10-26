@@ -463,7 +463,7 @@ sub yal_parse_log {
 	#
 	# Clear fugue timer when you didn't really die
 	#
-	if (/An illusion of life forms around you, then dissipates, taking your place in the beyond!/) {
+	if (/^An illusion of life forms around you, then dissipates, taking your place in the beyond!/) {
 	    clear_last_fugue_timer();
 	    $YAL{effectTimers} = {};
 	    next;
@@ -541,7 +541,7 @@ sub yal_parse_log {
 	#
 	# Starting hell run
 	# 
-	if (/\Q$$RUN{toon}\E: Send me to (Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/) {
+	if (/^\Q$$RUN{toon}\E: Send me to (Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/) {
 	    if ($OPTIONS{"hellentrymessagebox"}==1) {
 		my $clear_stats = $YW{mw}->messageBox(-message => "Clear stats?",
 						  -title => "Entering hells",
@@ -886,7 +886,7 @@ sub parse_srv_msg {
 		if (exists($HGareas->{$parts[0]})) {
 		    $$RUN{cArea} = $parts[0];
 		}
-		elsif ($parts[0] =~ /(Avernus|Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/) {
+		elsif ($parts[0] =~ /^(Avernus|Dis|Minauros|Phlegethos|Stygia|Malbolge|Maladomini|Cania|Nessus)/) {
 		    $$RUN{cArea} = $1;
 		    $HGareas->{$1} = {area => 'Hells', new => 1};
 		}
@@ -1066,7 +1066,7 @@ sub parse_collect_metadata {
     }
 
     # Welcome message
-    if (/Welcome to Higher Ground, (.+)!$/) {
+    if (/^Welcome to Higher Ground, (.+)!$/) {
 	if ($OPTIONS{"catchtoonname"}==1) {
 	    # clear old toon from party if re-login with another toon
 	    $$RUN{partyList}{$$RUN{toon}} = 0 if ($$RUN{toon} and defined $$RUN{partyList}{$$RUN{toon}});
@@ -1092,15 +1092,15 @@ sub parse_collect_metadata {
     }
 
     # On which server are we? - at welcome and end of !who
-    if (/You are on server (\d+)/) {
-	$$RUN{srvName} = $1;
+    if (/^(\[Server\] )?You are on server (\d+)/) {
+	$$RUN{srvName} = $2;
 	$YAL{myServerWho} = 0; # no !who output to follow immediately after
 	$YAL{catchPartyWho} = 0;
 	return 1;
     }
 
     # prepare server uptime display
-    if (/This server has been up for ((\d+) hours, )?(\d+) minutes,? and (\d+) seconds\./) {
+    if (/^This server has been up for ((\d+) hours, )?(\d+) minutes,? and (\d+) seconds\./) {
 	$$RUN{srvBaseUptime} = $4 + 60*$3 + ($2 ? 3600*$2 : 0);
 	$$RUN{srvBaseTS} = $$RUN{srvLogTS};
 	return 1;
