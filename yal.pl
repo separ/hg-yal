@@ -166,24 +166,6 @@ foreach $_ (keys (%PARAMONSTERS)) {
 }
 
 
-#
-# This hash holds the immunities printed in the GUI
-#
-my %immunities = ("Bludgeoning" => "--",
-		  "Piercing" => "--",
-		  "Slashing" => "--",
-		  "Magical" => "--",
-		  "Acid" => "--",
-		  "Cold" => "--",
-		  "Divine" => "--",
-		  "Electrical" => "--",
-		  "Fire" => "--",
-		  "Negative" => "--",
-		  "Positive" => "--",
-		  "Sonic" => "--"
-);
-my %resists = ();
-
 my @IMMUNE = ("Critical Hits", "Sneak Attacks", "Mind Affecting Spells", "Bigby's Grasping Hand");
 
 #
@@ -953,7 +935,8 @@ sub parse_line_srv_msg {
     # switch mode to collecting immunities
     elsif (/^Damage immunities:$/) {
 	$YAL{parseSM} = 'imm';
-	$YAL{immSM} = 'Damage'
+	$YAL{immSM} = 'Damage';
+	delete $$RUN{imms};
     }
 
     # !iteminfo
@@ -1031,21 +1014,22 @@ sub parse_sm_imm {
 	#if (/^    (Bludgeoning|Piercing|Slashing|Magical|Acid|Cold|Divine|Electrical|Fire|Negative|Positive|Sonic): \.+(\d+)%(\.+(\d+)\/-\.+)?/)
 	if (/^    (\w+): \.+(-?\d+)%(\.+(\d+)\/-\.+)?/) {
 	    #print "imm found: '$1'/'$2'/'".($4 // '?')."'\n";
-	    $immunities{$1} = $2;
-	    $resists{$1} = $4 // '';
+	    $$RUN{imms}{Damage}{$1} = $2;
+	    $$RUN{imms}{Damage}{$1} .= "|$4" if $4;
 	    return 1;
 	}
     } else {
 	# collect data for "Spell|Other immunities"
 	if (/^    Spells of level (\d) and lower/) {
 	    print "Spell immunity by level: $1\n";
+	    $$RUN{imms}{spellByLevel} = $1;
 	    return 1;
 	}
 	if (/^    ([\w ,]+)/) {
 	    my @ilist = split(/, /, $1);
 	    $ilist[$#ilist] =~ s/^and // if ($#ilist);
-	    # TODO: save imms for display
-	    print "$YAL{immSM} imms: ". join(',', @ilist)."\n";
+	    # save imms for display
+	    %{ $$RUN{imms}{$YAL{immSM}} } =  map { $_ => 1 } @ilist;
 	    return 1;
 	}
     }
@@ -1480,13 +1464,10 @@ sub yal_inc_logcount {
 
 sub gui_print_immunities {
     $YW{imms} -> delete("1.0", 'end');
+    my $i = $$RUN{imms}{Damage};
     # Remove physical
     foreach (@DAMAGETYPESIMM) {
-	my $t = $immunities{$_};
-	# TODO: make option if to show resists
-	$t .= '|' . $resists{$_} if ($resists{$_});
-	#$YW{imms} -> insert('end',  $immunities{$_}. "\t", "$COLOURS{$_}");
-	$YW{imms} -> insert('end',  $t. "\t", "$COLOURS{$_}");  
+	$YW{imms} -> insert('end', ($$i{$_} // '--')."\t", "$COLOURS{$_}");  
     }
 }
 
