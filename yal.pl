@@ -300,28 +300,32 @@ sub yal_parse_log {
 	}
 
 	if (/^\s*$/) { # skip empty lines
-	    parse_sm_end() if $YAL{parseSM};
+	    #parse_sm_end() if $YAL{parseSM};
 	    next;
 	}
 
 	# Remove DOS line shifts if any. Old habit
-	s/\015\012/\012/;
+	s/\015\012$/\012/; # dos2unix
+
 	# drop the initial bit
-	s/\[CHAT WINDOW TEXT\]\s+//;
+	s/^\[CHAT WINDOW TEXT\]\s+//;
+
 	my $time;
 	if (s/^\[([^\]]+)\]\s//) {
 	    $time = $1; # if defined $1;
 	}
 
-	# update server uptime if we did catch it once
-	if ($time // 0) {
+	# did we just see a timestamp?
+	if ($time) {
 	    # my($dow, $mon, $day, $hr, $min, $sec) = $time =~ /(\S+) (\S+) (\d+) (\d+):(\d+):(\d+)/;
 	    my $new_time = str2time($time) || 0;
+
 	    $$RUN{logFirstTS} = $new_time if !$$RUN{logFirstTS}; # remember first parsed timestamp
+
 	    if ($new_time != $$RUN{srvLogTS}) {
 		# current second actually changed
 		$$RUN{srvLogTS} = $new_time;
-		#print "$time -> " . str2time($time) . ", uptimeat|\n" if ($time);
+		# update server uptime if we did catch it once
 		if ($$RUN{srvBaseUptime}) {
 		    $$RUN{srvUptime} = $$RUN{srvBaseUptime} + ($$RUN{srvLogTS} - $$RUN{srvBaseTS});
 		    my $current_round = int $$RUN{srvUptime} / 6;
@@ -335,23 +339,29 @@ sub yal_parse_log {
 	    }
 
 	    # if we got a timestamp all parsing submodes are finished
-	    parse_sm_end(); # $YAL{parseSM} = '';
+	    parse_sm_end() if $YAL{parseSM};
+
+	    # Remove chats and stuff
+	    next if parse_line_chat();
+
+	    #
+	    # Match on most frequent lines first and use next (instead of a lot of else if's) to speed up evaluations
+	    # 
+
+	    # combat: attack and damage, xp and kills
+	    next if parse_line_combat();
+
+	    # Saves, skill and ability checks
+	    next if parse_line_checks_and_saves();
+
 	}
-	elsif (/^  / && $YAL{parseSM}) {
-	    # data to collect from an info command if starting with '  ' (2 blanks)
-	    next if parse_log_submode();
+	# else: no timestamp on this line
+	#elsif (/^  / && $YAL{parseSM}) {
+	elsif ($YAL{parseSM}) {
+	    # all submodes get data (at least) until the next line with timestamp
+	    parse_line_submode();
+	    next;
 	}
-
-	# Remove chats and stuff
-	next if parse_chat_line();
-
-	#
-	# Match on most frequent lines first and use next (instead of a lot of else if's) to speed up evaluations
-	# 
-
-
-	# combat: attack and damage, xp and kills
-	next if parse_combat_line();
 
 	# Different timers. Missing a lot of stuff here. Imm force for example
 	# GR
@@ -364,99 +374,15 @@ sub yal_parse_log {
 	    next;
 	}
 
-
-	# Saves, skill and ability checks
-	next if parse_checks_and_saves();
-
-
-	# Spell and turning resists
-	# Never got round to including turn resists
-	if (/^(.+) casts (.+)$/) {
-            my $who = $1;
-	    if ($2 =~ /unknown spell/) {
-		next if $OPTIONS{'skipunknownspells'};
-		if ($OPTIONS{"otherspells"} && ($who ne $$RUN{toon})){  
-		    $YW{resists} -> insert('end',$_, 'darkgray');
-		}
-	    }
-	    else {
-		if ($OPTIONS{"ownspells"} && ($1 eq $$RUN{toon})) {
-		    #make sure it is a effect that we have seen
-		    if (exists $YAL{effectTimersMax}{$2}) {
-			# TODO: find out if extend spell screws this
-			$YAL{effectTimers}{$2} = $YAL{effectTimersMax}{$2};
-		    }
-		    $YW{resists} -> insert('end',$_, 'casts');
-		}
-		elsif ($OPTIONS{"otherspells"} && ($1 ne $$RUN{toon})){  
-		    $YW{resists} -> insert('end',$_, 'white');
-		}
-	    }
-	    next;
-	}	
-	next if (/^(.+) casting (.+)$/);
-
-	# Spell penetration: our toon tried to beat an enemies SR
-	if (/^(.+) : Spell Penetration : \*(success|failure)\* : \((\d+) \+ (\d+) .+ vs. SR: (\d+)\)$/) {
-	    $YW{resists} -> insert('end', "SP: $1 : ", 'lightblue');
-	    if ($2 eq "success") {
-		$YW{resists} -> insert('end', "*$2*", 'green');
-	    }
-	    else {
-		$YW{resists} -> insert('end', "*$2*", 'red');
-	    }
-	    $YW{resists} -> insert('end', " : $3 + $4 = " . ($3 + $4) . " vs. SR: $5 ", 'lightblue');
-
-	    # List the spell penetration percentage if that is desired
-	    if ($OPTIONS{"sppercent"}==1) {
-		$YW{resists} -> insert('end', "(" .(21 - (max(1, min(20, ($5 - $4)))))*5 . "%)"."\n", 'yellow');
-	    }
-	    else {
-		$YW{resists} -> insert('end', "\n");
-	    }
-
-	    $$runData{$1}{base}{sr} = $5 if $5 > ($$runData{$1}{base}{sr} // 0);
-
-	    next;	   
-	}
-
-	# an attacker tries to beat our SR
-	if (/^(.+) : Spell Resistance : \*(defeated|success)\* : (.+)$/) {
-	    #$YW{resists} -> insert('end',$_, 'lightblue');
-	    $YW{resists} -> insert('end', "SR *$2* $3: $1\n", 'lightblue');
-	    next;
-	}
-
-	# Turning
-	if (/^(.+) : Turn (Outsider|Construct|Vermin|Undead) : \*(success|failure)\* : \((\d+) \+ (\d+) .+ vs. TR: (\d+)\)$/) {
-	    $YW{resists} -> insert('end', "Turn $2: $1 : *$3* : ($4 + $5 = " . ($4 + $5) . " vs. SR: $6 (" . (21 - (max(1, min(20, ($6 - $5)))))*5 . '%)'."\n", 'lightblue');
-	    $$runData{$1}{base}{tr} = $5 if $6 > ($$runData{$1}{base}{tr} // 0);
-	    # TODO: if (!$runData{$1}{base}{race}) ... $2
-	    next;	   
-	}
+	# people casting, SP, SR, turning, dispelling, breaching
+	next if parse_line_magic();
 	
 	# Spell and condition immunity
-	# Need two here as they are listed differently in the log
-	#if (/^(.+) : Immune to (.+)\.$/) {
+	# 2 versions: '.' at the end of line is optional
 	if (/^(.+) : Immune to (.+?)\.?$/) {
-	    $$runData{$1}{immuneTo}{$2} = 1;
+	    # TODO: move from runData to baseData ?
+	    $$runData{$1}{immuneTo}{$2}++;
 	    # TODO: display somewhere if $1 is our current target
-	    next;
-	}
-	#if (/^(.+) : Immune to (.+)$/) {
-	#    $immune{$1}{$2} = 1;	    
-	#    next;
-	#}	
-
-	# more output from !list imm
-	if (/^(Spell|Other) immunities:$/) {
-	    $YAL{parseSM} = "imm$1";
-	}
-
-	#
-        # Various lines that cannot really be used for anything as you cnnot see who causes them
-        #
-	if (/^\* (Mortal Strike|Called Shot|Penetrating Strike) \*$/) {
 	    next;
 	}
 
@@ -465,62 +391,38 @@ sub yal_parse_log {
 	#
 	if (/^An illusion of life forms around you, then dissipates, taking your place in the beyond!/) {
 	    clear_last_fugue_timer();
-	    $YAL{effectTimers} = {};
+	    $YAL{effectTimers} = {} if $YAL{isCurrent} || $debug;
 	    next;
 	}
 	if (/Your Eternal Return spell fires, preventing the life from leaving your body!/) {
 	    clear_last_fugue_timer();
-	    $YAL{effectTimers} = {};
+	    $YAL{effectTimers} = {} if $YAL{isCurrent} || $debug;
 	    next;
 	}
 
 	# meta-data (server, party members, ...)
 	next if parse_collect_metadata();
 
-	#ills dispelelling routine
-	#if (/^.+\*dispelled\*.+$/){
-	if (/^(.+) : Dispel (.+) : \*dispelled\* :(.+)$/) {
-
-	    if ($$RUN{toon} eq $1) {
-		$YW{resists} -> insert('end',"Your $2 has been dispelled \n", 'orange');
-		#print "your $2 dispelled \n";
-		#print $YAL{effectTimers}{$2};
-		delete $YAL{effectTimers}{$2};
-	    }
-	    next;
-	}
-
 	#
 	# Effects 
         #
 	# This one registers who the effects concern and clears effects timers so they can be regenerated
-	if (/^\[Server\] Effects on (.+):/) {
-	    $YAL{effectTimers} = {};
+	if (/^\[Server\] Effects on (.+):$/) {
+	    $YAL{effectTimers} = {} if $YAL{isCurrent} || $debug;
 
+	    $YAL{parseSM} = 'effects';
 	    $YAL{effectId} = $1;
 	    $YAL{effectId} = $$RUN{toon} if ($1 eq "you");
 
-	    $YAL{parseSM} = 'effects';
 	    next;
 	}
 
-	# check if a list of gear follows
-	next if parse_gear_list_header();
-
 	# Loot split rolls for whiners. Not sure what I will do with it yet
-	if (/(.+) rolled a \[D(4|6|8|10|12|20|100)\] and got a: \[(\d+)\]\./) {
-	    
-	}	
-
-	# Clear all effects timers after rest
-	if (/^Done resting\.$/) {
-	    $YAL{effectTimers} = {};
-	}
+	#if (/(.+) rolled a \[D(4|6|8|10|12|20|100)\] and got a: \[(\d+)\]\./) {
+	#}	
 
 	# Messages regarding entering and leaving the server
-	#next if (/(.+) has left as a player\.\./);
-	#next if (/(.+) has joined as a player\.\./);
-	next if (/(.+) has (joined|left) as a player\.\./);
+	next if (/(.+) has (joined|left) as a player\.\.$/);
 
 	# area specific lines - for now only hells
 	# TODO: if ($$RUN{cArea} =~ /^Hells/)
@@ -532,6 +434,24 @@ sub yal_parse_log {
 	    $shamelessadvertising = 1;
             next;
         }
+
+	#
+	# Different ingame commands to control program
+	#
+	next if parse_line_player_cmd();
+
+	# check if a list of gear follows
+	next if parse_gear_list_header();
+
+	if ($time && s/^\[Server\] //) {
+	    parse_line_srv_msg($_);
+	    next;
+	}
+
+	# Clear all effects timers after rest
+	if (/^Done resting\.$/) {
+	    $YAL{effectTimers} = {};
+	}
 
         # Grab the uses lines
         if (/^(.+) uses (.+)$/) {
@@ -550,16 +470,6 @@ sub yal_parse_log {
 		    yal_reset_all();
 		} 
 	    }
-	    next;
-	}
-
-	#
-	# Different ingame commands to control program
-	#
-	next if parse_player_cmds();
-
-	if ($time && s/^\[Server\] //) {
-	    parse_srv_msg($_);
 	    next;
 	}
 
@@ -597,10 +507,8 @@ sub yal_parse_log {
     yal_check_log_file() if $YAL{isCurrent};
 }
 
-# saves and ability checks
-sub parse_checks_and_saves {
-
-    my $chance = 0;
+# saves , skill- and ability-checks
+sub parse_line_checks_and_saves {
 
     # ability checks
     #if (/^(.+) : (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) vs. (.+) : \*(success|failure|success not possible)\* : (.+ vs\. DC: (\d+).)/) {
@@ -610,22 +518,16 @@ sub parse_checks_and_saves {
 	$$runData{$source}{base}{abilityCheck}{$ability} = $dc;
 
 	# output data
-	if ($OPTIONS{"dcpercent"}==1) {
-	    my $maxRes = 20 + $base; # maximum possible roll-result
-	    $chance = 5 * min(20, 1 + $maxRes - $dc) if $maxRes >= $dc;
-	}
-	append_check_line($YW{saves}, 'STAT', $target, "$ability vs. $source", $status, $details, $chance);
+	append_check_line($YW{saves}, 'Abil', $target, $ability, $status, $details, vs => $source);
 	return 1;
     }
 
     if (my ($target, $special, $saveType, $vsStr, $source, $status, $details, $save, $dc) =
 	/^(.+?)( : .+)? : (Will|Fortitude|Reflex) Save( vs. (.+))? : \*(success|failure)\* : (\(\d+ \+ (\d+) = \d+ \D+ (\d+)\))$/
     ) {
-	if ($OPTIONS{"dcpercent"}==1) {
-	    my $maxRes = 20 + $save; # maximum possible roll-result
-	    $chance = 5 * min(19, 1 + $maxRes - $dc) if $maxRes >= $dc;
-	}
-	append_check_line($YW{saves}, 'SAVE', $target, $saveType.($vsStr // ''), $status, $details.($special // ''), $chance);
+	$saveType .= $vsStr if $vsStr;
+	$details .= $special if $special;
+	append_check_line($YW{saves}, 'Save', $target, $saveType, $status, $details, maxChance => 19);
 
 	$source = 'base' if !$source;
 	my $s = $$runData{$target}{base}{saves}{$saveType} // ($$runData{$target}{base}{saves}{$saveType} = {});
@@ -642,53 +544,85 @@ sub parse_checks_and_saves {
 	$$runData{$source}{base}{skillCheck}{$skill} = $dc if $source;
 
 	# output data
-	if ($OPTIONS{"dcpercent"}==1) {
-	    my $maxRes = 20 + $base; # maximum possible roll-result
-	    $chance = 5 * min(20, 1 + $maxRes - $dc) if $maxRes >= $dc;
-	}
-	append_check_line($YW{saves}, 'SKILL', $target, $skill.($vsStr // ''), $status, $details, $chance);
+	append_check_line($YW{saves}, 'Skill', $target, $skill, $status, $details, vs => $source);
 	return 1;
     }
 
     # Skills
-    if (my ($target, $what, $source, $status, $details, $base, $dc) = /^(.+) : (\w+) vs\. (.+) : \*(success|failure)\* : (.+ \+ (\d+) = \d+ \D+ (\d+).)/) {
+    if (my ($target, $skill, $source, $status, $details, $base, $dc) = /^(.+) : (\w+) vs\. (.+) : \*(success|failure)\* : (.+ \+ (\d+) = \d+ \D+ (\d+).)/) {
 	# output data
-	if ($OPTIONS{"dcpercent"}==1) {
-	    my $maxRes = 20 + $base; # maximum possible roll-result
-	    $chance = 5 * min(20, 1 + $maxRes - $dc) if $maxRes >= $dc;
-	}
 	#$YW{saves} -> insert('end',$_, 'yellow');
-	append_check_line($YW{saves}, 'SKILL', $target, $what, $status, "$details vs. $source", $chance);
+	append_check_line($YW{saves}, 'Skill', $target, $skill, $status, $details, vs => $source);
 	return 1;
     }
 }
 
 sub append_check_line {
-    my ($widget, $type, $target, $what, $status, $details, $chance) = @_;
-    my $tgSelf = $$RUN{toon} eq $target;
-
-    if ($tgSelf) {
-	$widget -> insert('end', "<$type", 'lightblue');
-    }
-    else {
-	$widget -> insert('end', "$type> $target:", 'lightblue');
-    }
-    $widget -> insert('end', " $what");
-    $widget -> insert('end', " *$status*", ($status eq 'success') ? ($tgSelf ? 'green' : 'red') : ($tgSelf ? 'red' : 'green'));
-
-    if ($OPTIONS{"dcpercent"} == 1) {
-	$widget -> insert('end', " ($chance%)",
-	    ($chance > 80)
-		? ($tgSelf ? 'green' : 'red')
-		: (($chance > 20) ? 'yellow' : ($tgSelf ? 'red' : 'green'))
-	);
+    my ($widget, $type, $actor, $checkStr, $status, $details) = @_;
+    my $actorIsSelf = ($$RUN{toon} eq $actor);
+    my %p = (
+	myRoll => $actorIsSelf,
+	rollDefends => 1,
+	success => 'success', # status for roll >= check
+	maxChance => 20, # set to 19 if auto-fail on 1 (saves)
+    );
+    # extra parameters after $details are property overrides
+    while (my ($k, $v) = splice(@_, 6, 2)) {
+	$p{$k} = $v;
     }
 
-    $widget -> insert('end', " $details\n");
+    $widget -> insert('end', $type, 'lightblue');
+    $widget -> insert('end', " $checkStr") if $checkStr;
+
+    my $isSuccess = ($status eq $p{success});
+    my $successIsBad = (!$p{myRoll} && !$actorIsSelf);
+
+    $widget -> insert('end', " *$status*", ($isSuccess ^ $successIsBad) ? 'green' : 'red');
+
+    if ($details) {
+	if ($details =~ s/^[ :]*\((\d+) \+ (\d+) = (\d+) (\D+) (\d+)\)\s*//) {
+	    my ($roll, $base, $res, $sep, $dc) = ($1, $2, $3, $4, $5);
+
+	    # reformatted details
+	    my $cmp;
+	    $sep = 'DC' if !($sep =~ s/vs. (\w+):/$1/);
+	    if ($p{myRoll}) {
+		$cmp = qw/< = >/[1 + ($res <=> $dc)];
+		$widget -> insert('end', " $base + $roll $cmp $sep $dc");
+	    } else {
+		$cmp = qw/< = >/[1 + ($dc <=> $res)];
+		$widget -> insert('end', " $sep $dc $cmp $base + $roll");
+	    }
+
+	    # percent chance the status is successful with same dc and base
+	    if ($OPTIONS{"dcpercent"} == 1) {
+		my $chance = 0;
+		my $maxRes = 20 + $base; # maximum possible roll-result
+		$chance = 5 * min($p{maxChance}, 1 + $maxRes - $dc) if $maxRes >= $dc;
+		$widget -> insert('end', " ($chance%)",
+		    ($chance > 80)
+			? ($successIsBad ? 'red' : 'green')
+			: (($chance > 20) ? 'yellow' : ($successIsBad ? 'green' : 'red'))
+		);
+	    }
+	}
+	# append rest of details
+	$widget -> insert('end', " $details") if $details;
+    }
+
+    if (!$actorIsSelf) {
+	my $dir = '->';
+	$dir = '<-' if !$p{myRoll} && !$p{rollDefends}; # if !$successIsBad;
+	$widget -> insert('end', " $dir $actor", 'orange');
+    }
+    if ($p{vs}) {
+	$widget -> insert('end', " <- $p{vs}", 'yellow');
+    }
+    $widget -> insert('end', "\n");
 }
 
 # chat log
-sub parse_chat_line {
+sub parse_line_chat {
     if (/^(.+ )(.*): \[(Tell|Party|Shout)\] /) {
 	my ($fname, $sname, $type) = ($1, $2, $3);
 	my $speakername = $fname . $sname;
@@ -737,7 +671,7 @@ sub parse_chat_line {
 }
 
 # combat: attack and damage lines, kills and xp
-sub parse_combat_line {
+sub parse_line_combat {
 
     # Damage lines first as they are most abundant
     if (/(.+) damages (.+): (\d+) \((.+)\)/) {
@@ -861,14 +795,111 @@ sub parse_combat_line {
 	return 1;
     }
 
+    #
+    # Various lines that cannot really be used for anything as you cnnot see who causes them
+    #
+    if (/^\* (Mortal Strike|Called Shot|Penetrating Strike) \*$/) {
+	return 1;
+    }
+
     return 0;
+}
+
+# people casting, SP, SR, turning, dispelling, breaching
+sub parse_line_magic {
+
+    # somebody casting a spell
+    if (/^(.+) casts (.+)$/) {
+	my $who = $1;
+	if ($2 =~ /unknown spell/) {
+	    return 1 if $OPTIONS{'skipunknownspells'};
+	    if ($OPTIONS{"otherspells"} && ($who ne $$RUN{toon})){
+		$YW{resists} -> insert('end',$_, 'darkgray');
+	    }
+	}
+	else {
+	    if ($OPTIONS{"ownspells"} && ($1 eq $$RUN{toon})) {
+		#make sure it is a effect that we have seen
+		if (exists $YAL{effectTimersMax}{$2}) {
+		    # TODO: find out if extend spell screws this
+		    $YAL{effectTimers}{$2} = $YAL{effectTimersMax}{$2};
+		}
+		$YW{resists} -> insert('end',$_, 'casts');
+	    }
+	    elsif ($OPTIONS{"otherspells"} && ($1 ne $$RUN{toon})) {
+		$YW{resists} -> insert('end',$_, 'white');
+	    }
+	}
+	return 1;
+    }	
+    return 1 if (/^(.+) casting (.+)$/);
+
+    # Spell penetration: our toon tried to beat an enemies SR (self -> mob)
+    if (/^(.+) : Spell Penetration : \*(success|failure|immune)\*( : \((\d+) \+ (\d+) .+ vs. SR: (\d+)\))?$/) {
+	my ($target, $status, $details, $roll, $base, $sr) = ($1, $2, $3, $4, $5, $6);
+	if ($status eq 'immune') {
+	    $YW{resists} -> insert('end', $_, 'orange');
+	    return 1;
+	}
+
+	$$runData{$target}{base}{sr} = $sr if $sr > ($$runData{$target}{base}{sr} // 0);
+	append_check_line($YW{resists}, 'SP', $target, '', $status, $details, myRoll => 1);
+
+	return 1;	   
+    }
+
+    # Spell Resistance: attacker tries to beat our SR (mob -> self)
+    if (/^(.+) : Spell Resistance : \*(defeated|resisted|success|immune)\*( : \((\d+) \+ (\d+) .+ vs. SR: (\d+)\))?$/) {
+	my ($target, $status, $details, $roll, $base, $sr) = ($1, $2, $3, $4, $5, $6);
+	if ($status eq 'immune') {
+	    $YW{resists} -> insert('end', $_, 'orange');
+	    return 1;
+	}
+	append_check_line($YW{resists}, 'SR', $target, '', $status, $details, success => 'defeated', rollDefends => 0);
+	return 1;
+    }
+
+    # Turning (self -> mob)
+    if (/^(.+) : Turn (Outsider|Construct|Vermin|Undead) : \*(success|failure)\*( : \((\d+) \+ (\d+) .+ vs. TR: (\d+)\))$/) {
+	my ($target, $race, $status, $details, $roll, $base, $tr) = ($1, $2, $3, $4, $5, $6);
+
+	# TODO: calc seems funny, check that once we have data
+	$$runData{$target}{base}{tr} = $base if $tr > ($$runData{$target}{base}{tr} // 0);
+	# TODO: if (!$runData{$target}{base}{race}) ... $2
+
+	$YW{resists} -> insert('end', "Turn $race: $target : *$status* : ($roll + $base = " . ($roll + $base) . " vs. TR: $tr (" . (21 - (max(1, min(20, ($tr - $base)))))*5 . '%)'."\n", 'lightblue');
+	append_check_line($YW{resists}, 'Turn', $target, $race, $status, $details, myRoll => 1);
+	return 1;	   
+    }
+
+    # dispelling mob -> self
+    if (/^(.+) : Dispel ([\w -]+)( \([^\)]+\))? : \*(dispelled|failure)\*( : \(\d+ \+ (\d+) = \d+ vs. DC: (\d+)\))$/) {
+
+	return 1 if $3; # dispelling effect on something else
+
+	my ($source, $effect, $status, $details, $base, $dc) = ($1, $2, $4, $5, $6, $7);
+
+	#$YW{resists} -> insert('end', $_, 'orange');
+	append_check_line($YW{resists}, 'Dispel', $source, $effect, $status, $details, success => 'dispelled', rollDefends => 0);
+
+	delete $YAL{effectTimers}{$effect} if $status eq 'dispelled';
+
+	return 1;
+    }
+    # breaching
+    if (/^(.+) : Breach ([\w -]+)$/) {
+	$YW{resists} -> insert('end', $_, 'orange');
+	delete $YAL{effectTimers}{$2};
+	return 1;
+    }
+
 }
 
 #
 # parse server msgs
 # returns 1 if we had a match, otherwise 0
 #
-sub parse_srv_msg {
+sub parse_line_srv_msg {
     chomp; # remove \n at end ... TODO: why was this not done earlier?
 
     # where are we?
@@ -920,6 +951,7 @@ sub parse_srv_msg {
     # switch mode to collecting immunities
     elsif (/^Damage immunities:$/) {
 	$YAL{parseSM} = 'imm';
+	$YAL{immSM} = 'Damage'
     }
 
     # !iteminfo
@@ -966,7 +998,7 @@ sub parse_srv_msg {
 # sub-mode parsing, collect data after a recognized header
 # data-lines start with at least 2 blanks
 #
-sub parse_log_submode {
+sub parse_line_submode {
     if ($YAL{parseSM}) {
 	my $fn = "parse_sm_$YAL{parseSM}";
 	#print "sub func found: $fn - $_\n" if (defined(&$fn));
@@ -977,12 +1009,12 @@ sub parse_log_submode {
 
 # end of data for a sub-mode parser
 sub parse_sm_end {
-    if ($YAL{parseSM}) {
-	#print "submode end: $YAL{parseSM}\n";
-	my $fn = "parse_sm_end_$YAL{parseSM}";
-	goto &$fn if (defined(&$fn));
-	$YAL{parseSM} = '';
-    }
+    $YAL{lastSM} = $YAL{parseSM};
+    #print "submode end: $YAL{parseSM}\n";
+    my $fn = "parse_sm_end_$YAL{parseSM}";
+    $YAL{parseSM} = '';
+
+    goto &$fn if (defined(&$fn));
 }
 
 #
@@ -993,38 +1025,39 @@ sub parse_sm_end {
 # collect data for "Damage immunities"
 sub parse_sm_imm {
     #printf "in parse_sm_imm\(\)\n";
-    #if (/^    (Bludgeoning|Piercing|Slashing|Magical|Acid|Cold|Divine|Electrical|Fire|Negative|Positive|Sonic): \.+(\d+)%(\.+(\d+)\/-\.+)?/)
-    if (/^    (\w+): \.+(-?\d+)%(\.+(\d+)\/-\.+)?/) {
-	#print "imm found: '$1'/'$2'/'".($4 // '?')."'\n";
-	$immunities{$1} = $2;
-	$resists{$1} = $4 // '';
-	gui_print_immunities(); # TODO: only once when we have all of them
+    if ($YAL{immSM} eq 'Damage') {
+	#if (/^    (Bludgeoning|Piercing|Slashing|Magical|Acid|Cold|Divine|Electrical|Fire|Negative|Positive|Sonic): \.+(\d+)%(\.+(\d+)\/-\.+)?/)
+	if (/^    (\w+): \.+(-?\d+)%(\.+(\d+)\/-\.+)?/) {
+	    #print "imm found: '$1'/'$2'/'".($4 // '?')."'\n";
+	    $immunities{$1} = $2;
+	    $resists{$1} = $4 // '';
+	    return 1;
+	}
+    } else {
+	# collect data for "Spell|Other immunities"
+	if (/^    Spells of level (\d) and lower/) {
+	    print "Spell immunity by level: $1\n";
+	    return 1;
+	}
+	if (/^    ([\w ,]+)/) {
+	    my @ilist = split(/, /, $1);
+	    $ilist[$#ilist] =~ s/^and // if ($#ilist);
+	    # TODO: save imms for display
+	    print "$YAL{immSM} imms: ". join(',', @ilist)."\n";
+	    return 1;
+	}
     }
-    return 1;
+
+    # more output from !list imm
+    if (/^(Spell|Other) immunities:$/) {
+	$YAL{immSM} = $1;
+    }
+
+    return 0;
 }
 
-# collect data for "Other immunities"
-sub parse_sm_immOther {
-    if (/^    ([\w ,]+)/) {
-	my @ilist = split(/, /, $1);
-	$ilist[$#ilist] =~ s/^and // if ($#ilist);
-	# TODO: save imms for display
-	print "other imms: ". join(',', @ilist)."\n";
-    }
-    return 1;
-}
-
-# collect data for "Spell immunities"
-sub parse_sm_immSpell {
-    if (/^    Spells of level (\d) and lower/) {
-	print "Spell immunity by level: $1\n";
-    }
-    elsif (/^    ([\w ,]+)/) {
-	my @ilist = split(/, /, $1);
-	$ilist[$#ilist] =~ s/^and // if ($#ilist);
-	# TODO: save imms for display
-    }
-    return 1;
+sub parse_sm_end_imm {
+    gui_print_immunities(); # TODO: only once when we have all of them
 }
 
 # collect data for effects
@@ -1106,7 +1139,7 @@ sub parse_collect_metadata {
 	return 1;
     }
 
-    if (/^(.+) has (joined|left) the party\./) {
+    if (/^(.+) has (joined|left) the party\.$/) {
 	if ($2 eq "joined") {
 	    new_party_member($1); # TODO: make option for this catch
 	} else {
@@ -1139,6 +1172,7 @@ sub parse_sm_who {
 	$$RUN{toonList}{$toonname} = 1; #0 if (!defined($$RUN{toonList}{$toonname}));
 	new_party_member($toonname) if ($YAL{catchPartyWho});
     }
+
     return 1;
 }
 
@@ -1221,7 +1255,7 @@ sub parse_line_area_Hells {
 }
 
 # player commands to control YAL
-sub parse_player_cmds {
+sub parse_line_player_cmd {
     if (/\Q$$RUN{toon}\E: \[Whisper\] \.(.+)/) {
 	my $command = $1;
 	if ($command eq "clear" || $command eq "reset") {
