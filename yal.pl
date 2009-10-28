@@ -282,7 +282,9 @@ sub yal_parse_log {
     # Make sure we're parsing the active log file
 
     # logfile- and run-info is now top-right
-    $YAL{logfile_info} = $YAL{currentlogfile} . (defined($YAL{saverunbuffer}) ? ' (RUN)' : '');
+    my $clf = $YAL{currentlogfile};
+    $clf =~ s!^.+/([^/]+)$!.../$1!;
+    $YAL{logfile_info} = $clf . (defined($YAL{saverunbuffer}) ? ' (RUN)' : '');
     update_run_stats();
         
     my $endhitout = ($YW{hits_out} -> yview())[1];
