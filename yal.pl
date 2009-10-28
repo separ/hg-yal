@@ -748,14 +748,14 @@ sub parse_line_combat {
 
 	if (exists($$RUN{partyList}{$2})) {
 	    # Start a death timer if it was a party member who died
-	    push(@{$$RUN{deathTimers}{300}}, $2); # unless $$RUN{cMap} && !$HGmaps->{$$RUN{cMap}}{'respawn'};
+	    push(@{$YAL{deathTimers}{300}}, $2) if $YAL{isCurrent} || $debug;
 	    # was it our own toon?
 	    if ($2 eq $$RUN{toon}) {
 		# if it was the toon that died ... clear effects timers
 		$$RUN{deaths}++;
 		$$RUN{lastKiller} = $1;
 		$YAL{effectTimers} = {};
-	    } 
+	    }
 	}
 	else {
 	    # Check if the monster was a paragon
@@ -1384,15 +1384,15 @@ sub update_death_timers {
     $YW{fuguetimers}->delete("1.0", 'end');
 	#$YW{othertimers}->delete("1.0", 'end');
 	
-    if (exists($$RUN{deathTimers}{0})) {
-	delete($$RUN{deathTimers}{0});
+    if (exists($YAL{deathTimers}{0})) {
+	delete($YAL{deathTimers}{0});
     }
-    foreach my $time (sort {$a <=> $b} keys(%{ $$RUN{deathTimers} })) {	
-	$$RUN{deathTimers}{$time-1} =[@{$$RUN{deathTimers}{$time}}];
+    foreach my $time (sort {$a <=> $b} keys(%{ $YAL{deathTimers} })) {	
+	$YAL{deathTimers}{$time-1} =[@{$YAL{deathTimers}{$time}}];
 	if ($time<11 && $OPTIONS{"fuguebeep"}) {
 	    $YW{mw} -> bell;
 	}
-	foreach my $player (@{$$RUN{deathTimers}{$time}}) {
+	foreach my $player (@{$YAL{deathTimers}{$time}}) {
 	    my $timertext = sprintf "%2d:%02d %s \n", integer_div($time, 60), ($time % 60), $player;
 	    my $s = ($player eq $$RUN{toon}) ? 'self' : '';
 	    if ($time<10) {
@@ -1408,7 +1408,7 @@ sub update_death_timers {
 		$YW{fuguetimers} -> insert('end', $timertext, $s);
 	    }
 	}
-	delete($$RUN{deathTimers}{$time});
+	delete($YAL{deathTimers}{$time});
     }
 }
 
@@ -1426,7 +1426,7 @@ sub update_run_stats {
 }
 
 sub clear_last_fugue_timer() {
-#    pop(@{$$RUN{deathTimers}{300}});        
+#    pop(@{$YAL{deathTimers}{300}});        
 }
 
 
