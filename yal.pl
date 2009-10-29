@@ -44,6 +44,7 @@ use strict;
 my $version = "0.1.4b";
 # some container vars to take over the countless globals
 my %YAL;
+my %DEF = (); # definitions (colors, dmg types, short strings, ...)
 my %YW = (); # YAL Widgets
 
 my %emptyRun; # blueprint for run-data, filled with hg_run_init()
@@ -235,7 +236,8 @@ configure_fonts();
 
 hgdata_import_xml(); # test ... replace upper call when ready
 
-gui_print_immunities();
+gui_update_immunities();
+
 if ($OPTIONS{'autostartrun'}) {
     runlog_start('currentrun.txt');
 }
@@ -277,7 +279,7 @@ sub yal_parse_log {
     my $endresists= ($YW{resists}-> yview())[1];
 
     # Clear the EOF flag
-    seek(LOGFILE,0,1) || ($YAL{statusmessage} .= " | Log file not found!");
+    seek(LOGFILE,0,1) || ($YAL{logfile_info} = "Log file not found!");
     while(<LOGFILE>) {
 	if (defined($YAL{saverunbuffer}) && $YAL{isCurrent}) {
 	    $YAL{saverunbuffer} .= $_ ;
@@ -296,11 +298,8 @@ sub yal_parse_log {
 
 	my $time;
 	if (s/^\[([^\]]+)\]\s//) {
-	    $time = $1; # if defined $1;
-	}
-
-	# did we just see a timestamp?
-	if ($time) {
+	    # we just saw a timestamp
+	    $time = $1;
 	    # my($dow, $mon, $day, $hr, $min, $sec) = $time =~ /(\S+) (\S+) (\d+) (\d+):(\d+):(\d+)/;
 	    my $new_time = str2time($time) || 0;
 
@@ -313,7 +312,7 @@ sub yal_parse_log {
 		if ($$RUN{srvBaseUptime}) {
 		    $$RUN{srvUptime} = $$RUN{srvBaseUptime} + ($$RUN{srvLogTS} - $$RUN{srvBaseTS});
 		    my $current_round = int $$RUN{srvUptime} / 6;
-		    gui_update_top_info_area();
+		    #gui_update_top_info_area();
 		    if ($current_round != $$RUN{srvRound}) {
 			# every 6 seconds we have a new round
 			#printf "new round: %d -> %d @ %d - %s\n", $$RUN{srvRound}, $current_round, $$RUN{srvUptime}, time2str("%R", $$RUN{srvUptime}, 0);
@@ -461,7 +460,6 @@ sub yal_parse_log {
 	# if (/You are in Higher Ground Enhanced Mode./)
 	if (/^Latest Module Build: (.*)\s*/) {
 	    $$RUN{srvModDate} = $1;
-	    $YW{l_mod_date}->configure(-text=>"Mod.Build: $1");
 	    next;
 	}
 
@@ -486,6 +484,7 @@ sub yal_parse_log {
     $YW{damage_inc}->see('end') if $enddmginc == 1;
 
     update_run_stats();
+    update_server_info();
 
     # Check if it's time to change log files
     yal_check_log_file() if $YAL{isCurrent};
@@ -1025,6 +1024,11 @@ sub parse_sm_imm {
 	    $$RUN{imms}{spellByLevel} = $1;
 	    return 1;
 	}
+	# TODO: spell school immunities
+	if (/^    ([\w ,]+) spells$/) {
+	    print "spell school immunities: $1\n";
+	    return 1;
+	}
 	if (/^    ([\w ,]+)/) {
 	    my @ilist = split(/, /, $1);
 	    $ilist[$#ilist] =~ s/^and // if ($#ilist);
@@ -1043,7 +1047,7 @@ sub parse_sm_imm {
 }
 
 sub parse_sm_end_imm {
-    gui_print_immunities(); # TODO: only once when we have all of them
+    gui_update_immunities(); # TODO: only once when we have all of them
 }
 
 # collect data for effects
@@ -1413,16 +1417,33 @@ sub update_death_timers {
 }
 
 sub update_run_stats {
-    $YAL{statusmessage} = "Total XP: " . num_fmt($$RUN{totalxp}) . " | Total dmg: " . (num_fmt($$runData{$$RUN{toon}}{damOut}) || "None yet" ) ;
+    my $widget = $YW{top_info_area};
+    $widget->delete("1.0", 'end');
+
+    my $myData = $$runData{$$RUN{toon}};
+    $widget->insert('end', "XP ".num_fmt($$RUN{totalxp}), 'yellow');
+    return if !$myData;
+    $widget->insert('end', " Do ".num_fmt($$myData{damOut}), 'green');
+    $widget->insert('end', " Di ".num_fmt($$myData{damIn}), 'red');
+    $widget->insert('end', " K $$myData{kills}", 'green');
+    $widget->insert('end', " D $$myData{deaths}", 'red');
+
     if ($OPTIONS{"showparagons"}==1) {
 	if ($$RUN{totalmobkills}>0) { 
 	    my $numberofparagons = ($$RUN{paracount}{1} // 0) + ($$RUN{paracount}{2} // 0) + ($$RUN{paracount}{3} // 0);
-	    $YAL{statusmessage} .= " | Paragons: " . int($numberofparagons/$$RUN{totalmobkills} *1000)/10 . "%";
-	}
-	else {
-	    $YAL{statusmessage} .= " | Paragons: 0%";
+	    $widget->insert('end', " | Paragons: " . int($numberofparagons/$$RUN{totalmobkills} *1000)/10 . "%", 'orange') if $numberofparagons;
 	}
     }
+}
+
+sub update_server_info {
+    my $s = '';
+    $s = "Server $$RUN{srvName}" if $$RUN{srvName};
+    if ($$RUN{srvBaseUptime}) {
+	$s .= ' up '.time2str("%R", $$RUN{srvUptime}, 0);
+    }
+    $s .= " [Mod:$$RUN{srvModDate}]" if $$RUN{srvModDate};
+    $YW{l_srv_info}->configure(-text=>$s) if $s;
 }
 
 sub clear_last_fugue_timer() {
@@ -1462,15 +1483,51 @@ sub yal_inc_logcount {
     open(LOGFILE, "$YAL{currentlogfile}");
 }
 
-sub gui_print_immunities {
+sub gui_update_immunities {
+    my $RI = $$RUN{imms};
+    my $i = $$RI{Damage};
     $YW{imms} -> delete("1.0", 'end');
-    my $i = $$RUN{imms}{Damage};
     # Remove physical
     foreach (@DAMAGETYPESIMM) {
 	$YW{imms} -> insert('end', ($$i{$_} // '--')."\t", "$COLOURS{$_}");  
     }
+
+    $i = $$RI{Other};
+    $YW{imms} -> insert('end', 'Cond:', 'label');
+    $YW{imms} -> insert('end', ' ');
+    foreach (@{ $DEF{showImms} }) {
+	my $sn = $DEF{immShort}{$_};
+	$YW{imms} -> insert('end', "$sn ", $$i{$_} ? 'green' : 'red');
+    }
+
+    $i = $$RI{Spell};
+    $YW{imms} -> insert('end', 'Spell:', 'label');
+    if ($i || $$RI{spellByLevel}) {
+	$YW{imms} -> insert('end', " L$$RI{spellByLevel}", 'green') if $$RI{spellByLevel};
+	if ($i) {
+	    my @slist = map { shorten_name($_) } ( keys %$i );
+	    $YW{imms} -> insert('end', ' '. join(', ', @slist), 'white') if $i;
+	}
+    } else {
+	$YW{imms} -> insert('end', " none", 'red');
+    }
 }
 
+sub shorten_name {
+    my $spell = shift;
+    # TODO: if $DEF{spells}{$spell} ...
+    my @p = split(/ /, $spell);
+    if (!$#p) { # 1 word only
+	return substr($spell, 0, 4);
+    }
+
+    if ($#p == 1) { # 2 words
+	@p = map { substr($_, 0, 2) } @p;
+    } else { # 3 or more words
+	@p = map { substr($_, 0, 1) } @p;
+    }
+    return join('', @p);
+}
 
 #
 # Check if we should update the current log file
@@ -2670,31 +2727,31 @@ sub gui_init {
     $YW{mw} -> title("NWN logger v" .$version . ". --- by Claus Ekstrom 2008. Edits by Illandous & Separ");
 
     # Set up the menu bar
-    $YW{frm_menu} = gui_init_menu($YW{mw});
-    $YW{frm_menu} -> pack(-side=>'top', -fill=>'x');
+    my $frmMenu = gui_init_menu($YW{mw});
+    $frmMenu -> pack(-side=>'top', -fill=>'x');
 
     #
     # Now define the main frames/areas of the GUI
     # The GUI is split into 3 areas: a panel on the rhs and the "main" bit which is split into an upper and lower panel
     #
-    $YW{frm_top} = gui_init_area_top($YW{mw});
-    $YW{frm_bottom} = gui_init_area_bottom($YW{mw});
-    $YW{frm_rightbar} = gui_init_sidebar($YW{mw});
+    my $frmTop = gui_init_area_top($YW{mw});
+    my $frmBottom = gui_init_area_bottom($YW{mw});
+    my $frmSBR = gui_init_sidebar($YW{mw}); # SideBar Right
 
     ## Character status
     #$YW{frm_char} = $YW{mw} -> Frame(-relief=>'ridge', -borderwidth=>2);
     #$YW{conceal_lab} = $YW{frm_char} -> Label(-text => "Conceal");
 
     # and a statusbar at the bottom
-    $YW{frm_status} = gui_init_statusbar($YW{mw});
+    my $frmStatusbar = gui_init_statusbar($YW{mw});
 
     ##
     ## Geometry management
     ##
-    $YW{frm_status} -> pack(-side=>'bottom', -anchor=>'w', -fill=>'x');
-    $YW{frm_rightbar} -> pack(-side=>"right", -fill => 'y', -anchor=>'n');
-    $YW{frm_top} -> pack(-side=>'top', -expand=>1, -fill => 'both');
-    $YW{frm_bottom} -> pack(-side=>'top', -expand=>1, -fill => 'both');
+    $frmStatusbar -> pack(-side=>'bottom', -anchor=>'w', -fill=>'x');
+    $frmSBR -> pack(-side=>"right", -fill => 'y', -anchor=>'n');
+    $frmTop -> pack(-side=>'top', -expand=>1, -fill => 'both');
+    $frmBottom -> pack(-side=>'top', -expand=>1, -fill => 'both');
 }
 
 # Set up the menu bar
@@ -2751,7 +2808,7 @@ sub gui_init_menu {
 	]
     ) -> pack(-side=>'left');
 
-    $YW{l_mod_date} = $mb -> Label(-text=>'Mod.Build: ?') -> pack(-side=>'right');
+    $YW{l_srv_info} = $mb -> Label(-text=>'Server info: ?') -> pack(-side=>'right');
 
     return $mb;
 }
@@ -2966,14 +3023,14 @@ sub gui_init_statusbar {
     my $ctWidget = shift;
     my $sb = $ctWidget -> Frame();
 
-    $YW{bt_show_imms} = $sb -> Button(-text => "Show", -padx => 3, -pady => 0) -> pack(-side => "right");
+    $sb -> Label (-text => "Imms:") -> pack(-side => 'left', -anchor => 'w');
     $YW{imms} = $sb -> Text(
 	-background=>"black", -height=>1, width=>70, -tabs => [qw/.23i/],
 	-font => [-family => $OPTIONS{"font"}, -size=>$OPTIONS{"fontsize"}]
-    ) -> pack(-side=>"right");
-    $YW{l_status_msg} = $sb -> Label(
-	-textvariable => \$YAL{statusmessage}, -borderwidth=>2, -relief=>'groove', -anchor=>"w"
-    ) ->pack(-side=>"left", -fill => 'x', -expand=>1);
+    ) -> pack(-side => 'left', -anchor => 'w', -fill => 'x', -expand => 1);
+    $YW{imms}->tagConfigure("label", -foreground => "black", -background => 'grey');
+
+    #$YW{bt_show_imms} = $sb -> Button(-text => "Show", -padx => 3, -pady => 0) -> pack(-side => 'left', -anchor => 'w');
 
     return $sb;
 }
@@ -3162,7 +3219,6 @@ sub yal_init {
 	logfilenumber => 1,
 	currentlogfile => 'nwclientLog1.txt',
 	parsetime => 3000, # reparse log every 3 seconds
-	statusmessage => '', # text for statusbar at the bottom
 	bankchest => 'default',
 	gearcontainer => '',
 	hit_frequency_weight => 30,
@@ -3193,8 +3249,39 @@ sub yal_init {
     $HGtoons = $HGdata{'toon'};
     $HGnew = $HGdata{'new'};
 
+    yal_init_imms();
+
     # prepare structure to save run data in
     hg_run_init();
+}
+
+sub yal_init_imms {
+    $DEF{showImms} = [
+	'Mind Spells', 'Poison', 'Disease', 'Fear', 'Paralysis', 'Knockdown', 'Negative Levels', 'Sneak Attack', 'Death Magic', 'Critical Hits'
+    ];
+    $DEF{immShort} = {
+	'Mind Spells' => 'Mi',
+	'Poison' => 'Po',
+	'Disease' => 'Di',
+	'Fear' => 'F',
+	'Paralysis' => 'Pa',
+	# TODO: combine next 3 into a 'Freedom' property
+	#'Slow',
+	#'Entangle',
+	#'Movement Speed Decrease',
+	'Knockdown' => 'KD',
+	'Negative Levels' => 'LD', # Level Drain
+	'Sneak Attack' => 'Sn',
+	'Death Magic' => 'DM',
+	'Critical Hits' => 'Cr',
+	# rather complete list below ... show more ?
+	# Mind Spells, Poison, Disease, Fear, Traps, Paralysis, Blindness
+	# Deafness, Slow, Entangle, Silence, Stun, Sleep, Charm, Dominate
+	# Confuse, Curses, Daze, Ability Decrease, Attack Decrease
+	# Damage Decrease, Damage Immunity Decrease, AC Decrease
+	# Movement Speed Decrease, Saving Throw Decrease, Spell Resistance Decrease, Skill Decrease
+	# Knockdown, Negative Levels, Sneak Attack, Critical Hits, Death Magic
+    };
 }
 
 sub hgdata_import_xml {
