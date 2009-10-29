@@ -994,10 +994,9 @@ sub parse_line_submode {
 # end of data for a sub-mode parser
 sub parse_sm_end {
     $YAL{lastSM} = $YAL{parseSM};
-    #print "submode end: $YAL{parseSM}\n";
-    my $fn = "parse_sm_end_$YAL{parseSM}";
     $YAL{parseSM} = '';
 
+    my $fn = "parse_sm_end_$YAL{parseSM}";
     goto &$fn if (defined(&$fn));
 }
 
@@ -1172,28 +1171,33 @@ sub parse_gear_list_header {
     # From uses of !list contents on a container
 
     # Loot lines and rarity - skip "Common" and "Uncommon" stuff
-    if (/(.+): (Non-random|Beyond Ultrarare|Ultrarare|Rare) items:/) {
+    #if (/(.+): ((Non-random|Beyond Ultrarare|Ultrarare|Rare) items|Artifacts):$/) {
+    if (/(.+): ((\w+([ -]\w+)?) items|Artifacts):$/) {
 	# TODO: if ($$RUN{toon} eq $q) ...
-	$YAL{gearcontainer} = $1;
-	#if ($YAL{parseSM} ne 'gear') {
-    print "reset gearcontainer $YAL{gearcontainer}\n" if (exists($YAL{gear}{$YAL{gearcontainer}}) && !$YAL{next_item_rarity});
-	    # Now clear the existing data if that exists
-	    $YAL{gear}{$YAL{gearcontainer}} = {} if (exists($YAL{gear}{$YAL{gearcontainer}}) && !$YAL{next_item_rarity});
-	    $YAL{parseSM} = 'gear';
-	#}
-	$YAL{next_item_rarity} = $2; # TODO: use that data
-    }
-    elsif (/\[Server\] Contents of Persistent (Transfer|Storage) Chest:/) {
-	$YAL{gearcontainer} = "Bankchest $YAL{bankchest}";
 	$YAL{parseSM} = 'gear';
-	# Now clear the existing data if that exists
-	delete $YAL{gear}{$YAL{gearcontainer}}; # = () if (exists($YAL{gear}{$YAL{gearcontainer}}));
-	$YAL{next_item_rarity} = ''; # unknown rarity
+	$YAL{gearcontainer} = $1;
+	$YAL{next_item_rarity} = $3 // $2; # TODO: use that data
+	if ($$RUN{srvLogTS} != ($YAL{gearTS} // 0)) {
+	    # last gear header was from a different command
+	    delete $YAL{gear}{$YAL{gearcontainer}};
+	    $YAL{gearTS} = $$RUN{srvLogTS};
+	}
     }
-    elsif (/You are now using bank chest '(.+?)'/) {
+    elsif (/^\[Server\] Contents of Persistent (Transfer|Storage) Chest:/) {
+	$YAL{parseSM} = 'gear';
+	$YAL{gearcontainer} = "Bankchest $YAL{bankchest}";
+	$YAL{next_item_rarity} = ''; # unknown rarity
+	# Now clear the existing data if it's start of list
+	if ($$RUN{srvLogTS} != ($YAL{gearTS} // 0)) {
+	    # last gear header was from a different command
+	    delete $YAL{gear}{$YAL{gearcontainer}};
+	    $YAL{gearTS} = $$RUN{srvLogTS};
+	}
+    }
+    elsif (/^You are now using bank chest '(.+?)'/) {
 	$YAL{bankchest} = $1;
     }
-    elsif (/You are now using your default bank chest/) {
+    elsif (/^You are now using your default bank chest/) {
 	$YAL{bankchest} = "default";
     }
     else {
@@ -1205,18 +1209,25 @@ sub parse_gear_list_header {
 
 # collect gear data from "!list inventory" or "!list contents"
 sub parse_sm_gear {
-    if (/^    ([A-Za-z].+)/) {
-	if ($YAL{gearcontainer} ne "") {
-	    $YAL{gear}{$YAL{gearcontainer}}{$1}++;
+    if (/^    ([\*A-Za-z].+)/) {
+	my $iname = $1;
+	my $count = 1;
+
+	if ($YAL{next_item_rarity}) {
+	    $iname =~ s/ \(equipped\)//;
+	    $YAL{items}{$iname}{rarity} = $YAL{next_item_rarity};
+	} else {
+	    if ($iname =~ s/ [\]\(](\d+)[\]\)]$//) {
+		$count = $1;
+	    }
+	    $iname =~ s/ \(\d+ charges\)$//;
 	}
-	# TODO: if ($YAL{next_item_rarity}) ...
+
+	if ($YAL{gearcontainer} ne "") {
+	    $YAL{gear}{$YAL{gearcontainer}}{$iname} += $count;
+	}
 	return 1;
     }
-}
-
-sub parse_sm_end_gear {
-    return if ($YAL{next_item_rarity} && /^\s*$/); # items of other rarity may follow
-    $YAL{parseSM} = '';
 }
 
 #######################################################################
@@ -2326,10 +2337,14 @@ sub save_inventories {
 	    foreach my $container (sort keys (%{ $YAL{gear} })) {		    
 		print SAVEFILE "<div class=\"combatant\"><h3><a name=\"$container\">$container</a></h3>\n";
 		foreach my $item (sort keys (%{$YAL{gear}{$container}})) {
-		    $_ = $item;
-		    s/ /_/g;
-		    print SAVEFILE "<a href=\"http://www.hgwiki.com/wiki/index.php?title=$_\">$item</a>";
+		    my $mkLink = 1;
+		    $mkLink = 0 if $item =~ /^\*/; # no link for renamed items
+		    $mkLink = 0 if $item =~ / \+\d+$/; # no link for +x items
+		    print SAVEFILE $mkLink ? hg_wiki_link($item, 1) : $item;
 		    print SAVEFILE " x$YAL{gear}{$container}{$item}" if ($YAL{gear}{$container}{$item}>1);
+		    if ($YAL{items}{$item}{rarity}) {
+			print SAVEFILE " ($DEF{rarities}{$YAL{items}{$item}{rarity}})";
+		    }
 		    print SAVEFILE "<br>";		    
 		}
 		print SAVEFILE "</div>\n";
@@ -2340,6 +2355,18 @@ sub save_inventories {
 	}
 	close(SAVEFILE);
     }    
+}
+
+sub hg_wiki_link {
+    my ($name, $makeTag) = @_;
+
+    my $wikiName = $name;
+    $wikiName =~ s/ /_/g;
+
+    my $wikiLink = "http://www.hgwiki.com/wiki/$wikiName";
+    $wikiLink = "<a href=\"$wikiLink\">$name</a>" if $makeTag;
+
+    return $wikiLink;
 }
 
 ######################################################################
@@ -3249,13 +3276,13 @@ sub yal_init {
     $HGtoons = $HGdata{'toon'};
     $HGnew = $HGdata{'new'};
 
-    yal_init_imms();
+    yal_init_defs();
 
     # prepare structure to save run data in
     hg_run_init();
 }
 
-sub yal_init_imms {
+sub yal_init_defs {
     $DEF{showImms} = [
 	'Mind Spells', 'Poison', 'Disease', 'Fear', 'Paralysis', 'Knockdown', 'Negative Levels', 'Sneak Attack', 'Death Magic', 'Critical Hits'
     ];
@@ -3281,6 +3308,15 @@ sub yal_init_imms {
 	# Damage Decrease, Damage Immunity Decrease, AC Decrease
 	# Movement Speed Decrease, Saving Throw Decrease, Spell Resistance Decrease, Skill Decrease
 	# Knockdown, Negative Levels, Sneak Attack, Critical Hits, Death Magic
+    };
+    $DEF{rarities} = {
+	'Common' => 'C',
+	'Uncommon' => 'UC',
+	'Rare' => 'R',
+	'Ultrarare' => 'UR',
+	'Beyond Ultrarare' => 'BUR',
+	'Non-random' => 'Set',
+	'Artifacts' => 'Arti',
     };
 }
 
